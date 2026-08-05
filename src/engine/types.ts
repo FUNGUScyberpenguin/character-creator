@@ -1,0 +1,281 @@
+/**
+ * Core, system-agnostic types.
+ *
+ * Nothing in this file knows about D&D, Pathfinder, or any other game. A
+ * "ruleset" is data: it declares which abilities exist, what the player picks
+ * and in what order, what those picks grant, and how the numbers on the final
+ * sheet are computed. The engine walks that data; the UI renders it.
+ *
+ * See docs/RULESET_FORMAT.md for a guided tour.
+ */
+
+/** An expression evaluated by `src/engine/expression.ts`, e.g. `"10 + mod(dex)"`. */
+export type Expression = string
+
+// ---------------------------------------------------------------------------
+// Abilities, skills, proficiencies
+// ---------------------------------------------------------------------------
+
+export interface AbilityDef {
+  id: string
+  name: string
+  /** Short form used on the sheet, e.g. "STR". */
+  abbr: string
+  description?: string
+}
+
+export interface SkillDef {
+  id: string
+  name: string
+  /** Ability id whose modifier this skill adds. */
+  ability: string
+  description?: string
+}
+
+/**
+ * Categories a character can be proficient in. Rulesets declare their own, so a
+ * system with "lores" or "disciplines" instead of "tools" simply says so.
+ */
+export interface ProficiencyCategory {
+  id: string
+  /** Plural label for sheet sections, e.g. "Tools". */
+  label: string
+  /** When true, the sheet lists these next to the relevant ability modifier. */
+  usesAbilityModifier?: boolean
+}
+
+// ---------------------------------------------------------------------------
+// Effects — the only way content changes a character
+// ---------------------------------------------------------------------------
+
+export type Effect =
+  /** Raise (or lower, with a negative amount) an ability score. */
+  | { type: 'ability'; ability: string; amount: number }
+  /** Become proficient in something. `category` matches a ProficiencyCategory id. */
+  | { type: 'proficiency'; category: string; value: string; expertise?: boolean }
+  /** Write a value into the stat bag, where derived expressions can read it. */
+  | { type: 'set'; stat: string; value: number | string }
+  /** Add to a numeric stat already in the bag (defaults to 0 if absent). */
+  | { type: 'bonus'; stat: string; amount: number }
+  /** A descriptive feature that appears on the sheet. */
+  | {
+      type: 'feature'
+      name: string
+      description: string
+      /** Optional "3/long rest"-style usage note. */
+      uses?: string
+    }
+  /** A tracked, numeric pool such as Rage uses or Ki points. */
+  | { type: 'resource'; name: string; formula: Expression }
+  /** Marks the character as a spellcaster and configures the spells step. */
+  | {
+      type: 'spellcasting'
+      /** Distinguishes multiple casting sources on one sheet. */
+      id: string
+      label: string
+      ability: string
+      /** "prepared" casters choose daily; "known" casters lock choices in. */
+      preparation: 'prepared' | 'known'
+      /** Id of the spell list (a tag on spell entries) this source draws from. */
+      list: string
+      /** Key into `Ruleset.spellSlotTables`. */
+      slots?: string
+      cantripsKnown?: Expression
+      spellsKnown?: Expression
+    }
+  /** Put an item in the character's pack. */
+  | { type: 'item'; item: string; quantity?: number }
+  /** Free-form line for anything the sheet should simply state. */
+  | { type: 'note'; text: string }
+
+// ---------------------------------------------------------------------------
+// Choices — decisions deferred to the player
+// ---------------------------------------------------------------------------
+
+export interface ChoiceOption {
+  id: string
+  name: string
+  summary?: string
+  description?: string
+  effects?: Effect[]
+  /** Options may themselves open further choices (a subclass, say). */
+  choices?: Choice[]
+}
+
+export type ChoiceSource =
+  /** Pick skills. Omit `from` to allow any skill in the ruleset. */
+  | { kind: 'skills'; from?: string[] }
+  /** Pick abilities to raise by `amount` each. */
+  | { kind: 'abilities'; amount: number; from?: string[] }
+  /** Pick proficiencies of one category from a list. */
+  | { kind: 'proficiencies'; category: string; from: string[] }
+  /** Pick entries out of a named collection, optionally filtered by tag. */
+  | { kind: 'collection'; collection: string; tag?: string }
+  /** An explicit, hand-written list of options. */
+  | { kind: 'options'; options: ChoiceOption[] }
+
+export interface Choice {
+  /** Unique within the entry or option that declares it. */
+  id: string
+  prompt: string
+  /** How many options to select. Defaults to 1. */
+  count?: number
+  /** Allow the same option more than once (e.g. +1/+1 to one ability). */
+  allowDuplicates?: boolean
+  source: ChoiceSource
+  /** Only offer this choice once the character reaches this level. */
+  minLevel?: number
+}
+
+// ---------------------------------------------------------------------------
+// Content collections
+// ---------------------------------------------------------------------------
+
+/** Something gained at a specific character level, e.g. a class feature. */
+export interface LevelGrant {
+  level: number
+  effects?: Effect[]
+  choices?: Choice[]
+}
+
+export interface Entry {
+  id: string
+  name: string
+  /** One line shown on the selection card. */
+  summary?: string
+  /** Longer prose shown when the card is expanded. */
+  description?: string
+  /** Emoji or short glyph used as the card's visual anchor. */
+  icon?: string
+  /** Small key/value chips shown on the card, e.g. { 'Hit Die': 'd10' }. */
+  meta?: Record<string, string | number>
+  tags?: string[]
+  effects?: Effect[]
+  choices?: Choice[]
+  /** Grants that unlock as the character levels up. */
+  levels?: LevelGrant[]
+}
+
+export interface Collection {
+  id: string
+  /** Plural label, e.g. "Classes". */
+  label: string
+  /** Singular label used in prompts, e.g. "Class". */
+  singular: string
+  entries: Entry[]
+}
+
+// ---------------------------------------------------------------------------
+// Ability score generation
+// ---------------------------------------------------------------------------
+
+export interface AbilityMethod {
+  id: string
+  name: string
+  description: string
+  kind: 'array' | 'point-buy' | 'roll' | 'manual'
+  /** For `array`: the fixed set of scores to assign. */
+  array?: number[]
+  /** For `point-buy`: total points, legal range, and cost per score. */
+  points?: number
+  min?: number
+  max?: number
+  costs?: Record<number, number>
+  /** For `roll`: dice expression rolled per ability, e.g. "4d6kh3". */
+  dice?: string
+}
+
+// ---------------------------------------------------------------------------
+// Wizard steps
+// ---------------------------------------------------------------------------
+
+export interface IdentityField {
+  id: string
+  label: string
+  kind: 'text' | 'textarea' | 'select'
+  placeholder?: string
+  options?: string[]
+  /** Blocks progress until filled in. */
+  required?: boolean
+}
+
+export type Step =
+  | { id: string; kind: 'intro'; title: string; subtitle?: string; body: string[] }
+  | { id: string; kind: 'level'; title: string; subtitle?: string }
+  | { id: string; kind: 'identity'; title: string; subtitle?: string; fields: IdentityField[] }
+  | {
+      id: string
+      kind: 'pick'
+      title: string
+      subtitle?: string
+      /** Collection to choose from. */
+      collection: string
+      /** How many entries to pick. Defaults to 1. */
+      count?: number
+    }
+  | { id: string; kind: 'abilities'; title: string; subtitle?: string }
+  | { id: string; kind: 'choices'; title: string; subtitle?: string }
+  | { id: string; kind: 'equipment'; title: string; subtitle?: string; collection: string }
+  | { id: string; kind: 'spells'; title: string; subtitle?: string; collection: string }
+  | { id: string; kind: 'review'; title: string; subtitle?: string }
+
+export type StepKind = Step['kind']
+
+// ---------------------------------------------------------------------------
+// Derived statistics
+// ---------------------------------------------------------------------------
+
+export interface DerivedStat {
+  id: string
+  label: string
+  formula: Expression
+  /** Where the sheet shows this value. */
+  slot?: 'primary' | 'secondary' | 'combat'
+  /** Render with a leading + or - (attack bonuses, initiative). */
+  signed?: boolean
+  description?: string
+}
+
+// ---------------------------------------------------------------------------
+// The ruleset itself
+// ---------------------------------------------------------------------------
+
+export interface RulesetLicense {
+  name: string
+  url?: string
+  /** Attribution text reproduced in the app and on exported sheets. */
+  notice: string
+}
+
+export interface Ruleset {
+  id: string
+  name: string
+  version: string
+  /** One paragraph shown on the ruleset picker. */
+  summary: string
+  license: RulesetLicense
+  maxLevel: number
+  /** Expression in terms of `level`, e.g. "2 + floor((level - 1) / 4)". */
+  proficiencyBonus: Expression
+  abilities: AbilityDef[]
+  skills: SkillDef[]
+  proficiencyCategories: ProficiencyCategory[]
+  abilityMethods: AbilityMethod[]
+  collections: Collection[]
+  steps: Step[]
+  derived: DerivedStat[]
+  /** Slot progressions keyed by name; each row is a character level (1-indexed). */
+  spellSlotTables?: Record<string, number[][]>
+  /** Defaults written into the stat bag before any effect is applied. */
+  baseStats?: Record<string, number | string>
+  /** Ceiling applied to every final ability score, if the system has one. */
+  abilityScoreMax?: number
+  /**
+   * Per-source spellcasting numbers. Evaluated with the usual context plus
+   * `castingMod`, the modifier of that source's casting ability.
+   */
+  spellcastingFormulas?: {
+    saveDC?: Expression
+    attackBonus?: Expression
+  }
+}

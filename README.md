@@ -1,0 +1,115 @@
+# Character Creator
+
+A free, open-source character builder for tabletop RPGs. Walk through every
+decision a new character asks of you — one screen at a time, with each choice
+explained — then download a printable PDF character sheet.
+
+Built for the two people at the table who need it most: the player making their
+first character, and the DM helping five of them do it at once.
+
+- **No account, no server.** Everything runs in your browser. Your character is
+  saved to local storage and never leaves your machine.
+- **Nothing is locked in.** Jump between steps freely; change your class at
+  level 12 and every dependent choice re-resolves.
+- **Real output.** A two-page PDF sheet, plus a JSON file you can reload later
+  or hand to someone else.
+- **Not hard-coded to one game.** The wizard is a generic engine driven by a
+  ruleset data file. D&D 5e (SRD 5.1) ships in the box; other systems are a
+  data module away.
+
+## Try it
+
+```bash
+git clone https://github.com/FUNGUScyberpenguin/character-creator.git
+cd character-creator
+npm install
+npm run dev
+```
+
+Then open the URL Vite prints. `npm run build` produces a static `dist/` you can
+host anywhere — GitHub Pages, Netlify, an S3 bucket, a USB stick.
+
+## What ships today
+
+The bundled **D&D 5e (SRD 5.1)** ruleset covers:
+
+| | |
+|---|---|
+| Classes | All 12, with features for levels 1–20 and their SRD subclass |
+| Races | All 9, including the traits and choices each grants |
+| Backgrounds | Acolyte (SRD) plus 8 original backgrounds, MIT-licensed |
+| Spells | The full SRD list, levels 0–9, filtered by class and slot level |
+| Equipment | SRD weapons, armour, packs and adventuring gear |
+| Ability scores | Standard array, point buy, 4d6-drop-lowest, or manual entry |
+
+Hit points, armour class, saves, skills, spell slots, save DCs and prepared-spell
+counts are all computed from your choices as you make them.
+
+## How it works
+
+Three layers, each one replaceable without touching the others:
+
+```
+src/engine/     Ruleset-agnostic. Knows about "picks", "effects" and "choices".
+                Knows nothing about D&D.
+src/rulesets/   Pure data. Declares abilities, steps, content and formulas.
+src/components/ React UI that renders whatever the ruleset declares.
+src/pdf/        Draws a sheet from the derived character, for any ruleset.
+```
+
+The engine's job is to walk from *what the player picked* to *what the sheet
+says*:
+
+1. **Resolve** — follow every pick into its effects, recursing through the
+   choices those picks open up (a class → its subclass → that subclass's own
+   choices).
+2. **Derive** — apply effects in a fixed order, then evaluate the ruleset's
+   formulas against the result.
+3. **Validate** — report what each step still needs, so the UI can show progress
+   without blocking anyone.
+
+Only the player's decisions are ever saved. Every number is recomputed from the
+ruleset on load, so fixing a rules bug also fixes every character already saved.
+
+### Formulas are data, not code
+
+Rulesets declare derived statistics as strings:
+
+```ts
+{ id: 'hp', label: 'Hit Points',
+  formula: 'stat.hitDie + con.mod + (level - 1) * (floor(stat.hitDie / 2) + 1 + con.mod)' }
+```
+
+These run through a small purpose-built parser in
+[`src/engine/expression.ts`](src/engine/expression.ts) — arithmetic, comparisons,
+and a fixed function table (`mod`, `floor`, `ceil`, `min`, `max`, `if`). There is
+no `eval` anywhere, so ruleset data stays data even if it came from somewhere you
+do not control.
+
+## Adding content or a new system
+
+Everything the wizard shows comes from a `Ruleset` object. Adding a homebrew
+subclass is a few lines in a data file; adding a whole new game means writing one
+new module and registering it in `src/rulesets/index.ts`.
+
+See **[docs/RULESET_FORMAT.md](docs/RULESET_FORMAT.md)** for the full format, and
+[CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Development server with hot reload |
+| `npm run build` | Type-check and build to `dist/` |
+| `npm run preview` | Serve the production build locally |
+| `npm test` | Run the test suite |
+| `npm run typecheck` | Type-check without building |
+
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+The 5e ruleset includes material from the System Reference Document 5.1 by
+Wizards of the Coast LLC, used under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode). This project
+is not affiliated with or endorsed by Wizards of the Coast.
