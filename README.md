@@ -95,6 +95,21 @@ new module and registering it in `src/rulesets/index.ts`.
 See **[docs/RULESET_FORMAT.md](docs/RULESET_FORMAT.md)** for the full format, and
 [CONTRIBUTING.md](CONTRIBUTING.md) for how to get set up.
 
+## Deploying
+
+Pushing to `main` builds the site and publishes it to GitHub Pages. The workflow
+enables Pages itself on its first successful run, so there is nothing to click —
+provided the repository is public (Pages on a private repository needs a paid
+plan).
+
+The build sets `BASE_PATH` to `/<repo>/` because Pages serves projects from a
+subpath. Hosting at a domain root instead? Build without it:
+
+```bash
+npm run build          # base "/", for a domain root or local preview
+BASE_PATH=/my-repo/ npm run build   # for GitHub Pages
+```
+
 ## Commands
 
 | Command | What it does |
