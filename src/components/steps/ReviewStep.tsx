@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react'
 
+import { describeCharacter } from '../../engine/derive'
 import { downloadCharacterSheet, triggerDownload } from '../../pdf/characterSheet'
 import { useStore } from '../../state/store'
 import { Callout } from '../common'
@@ -107,16 +108,14 @@ export function ReviewStep() {
 /** A screen-friendly version of what the PDF will contain. */
 export function SheetPreview() {
   const { ruleset, character, derived } = useStore()
-  const race = derived.resolution.picks['race']?.[0]?.name
-  const characterClass = derived.resolution.picks['class']?.[0]?.name
-  const background = derived.resolution.picks['background']?.[0]?.name
+  const descriptors = describeCharacter(derived)
 
   return (
     <article className="sheet">
       <header className="sheet-header">
         <h2>{character.name || 'Unnamed character'}</h2>
         <p>
-          {[characterClass ? `${characterClass} ${derived.level}` : `Level ${derived.level}`, race, background, character.identity['alignment']]
+          {[...(descriptors.length ? descriptors : [`Level ${derived.level}`]), character.identity['alignment']]
             .filter(Boolean)
             .join(' · ')}
         </p>
@@ -128,7 +127,7 @@ export function SheetPreview() {
           .map((stat) => (
             <div key={stat.id} className="tile">
               <span className="tile-label">{stat.label}</span>
-              <span className="tile-value">{stat.signed ? signed(stat.value) : stat.value}</span>
+              <span className="tile-value">{stat.display}</span>
             </div>
           ))}
       </div>
@@ -182,7 +181,7 @@ export function SheetPreview() {
                   .map((stat) => (
                     <li key={stat.id}>
                       <span>{stat.label}</span>
-                      <strong>{stat.signed ? signed(stat.value) : stat.value}</strong>
+                      <strong>{stat.display}</strong>
                     </li>
                   ))}
               </ul>

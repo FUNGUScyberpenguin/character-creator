@@ -64,6 +64,7 @@ function dwarfFighter(level = 1) {
   state.level = level
   state.baseAbilityScores = { str: 15, dex: 13, con: 14, int: 8, wis: 12, cha: 10 }
   state.selections[stepKey('race')] = ['dwarf']
+  state.selections[choiceKey(entryPath(stepKey('race'), 'dwarf'), 'subrace')] = ['hill-dwarf']
   state.selections[stepKey('class')] = ['fighter']
   state.selections[stepKey('background')] = ['acolyte']
   return state
@@ -138,13 +139,61 @@ describe('character resolution', () => {
   })
 })
 
+describe('subraces', () => {
+  it('requires a subrace for races that have them, and not for those that do not', () => {
+    const withSubrace = createCharacter(dnd5e)
+    withSubrace.selections[stepKey('race')] = ['dwarf']
+    const dwarfChoices = resolveCharacter(dnd5e, withSubrace).choices.map((c) => c.key)
+    expect(dwarfChoices.some((key) => key.endsWith('/choice:subrace'))).toBe(true)
+
+    const withoutSubrace = createCharacter(dnd5e)
+    withoutSubrace.selections[stepKey('race')] = ['human']
+    const humanChoices = resolveCharacter(dnd5e, withoutSubrace).choices.map((c) => c.key)
+    expect(humanChoices.some((key) => key.endsWith('/choice:subrace'))).toBe(false)
+  })
+
+  it('applies only the chosen subrace, and swapping it swaps the traits', () => {
+    const state = createCharacter(dnd5e)
+    state.baseAbilityScores = { str: 10, dex: 10, con: 10, int: 10, wis: 10, cha: 10 }
+    state.selections[stepKey('race')] = ['dwarf']
+    state.selections[stepKey('class')] = ['fighter']
+    const key = choiceKey(entryPath(stepKey('race'), 'dwarf'), 'subrace')
+
+    state.selections[key] = ['hill-dwarf']
+    const hill = deriveCharacter(dnd5e, state)
+    expect(hill.abilityScores['wis']).toBe(11)
+    expect(hill.abilityScores['str']).toBe(10)
+    expect(hill.features.some((f) => f.name === 'Dwarven Toughness')).toBe(true)
+
+    state.selections[key] = ['ironvein-dwarf']
+    const ironvein = deriveCharacter(dnd5e, state)
+    expect(ironvein.abilityScores['wis']).toBe(10)
+    expect(ironvein.abilityScores['str']).toBe(11)
+    expect(ironvein.features.some((f) => f.name === 'Dwarven Toughness')).toBe(false)
+
+    // Base-race traits survive either way.
+    expect(ironvein.abilityScores['con']).toBe(12)
+    expect(ironvein.features.some((f) => f.name === 'Dwarven Resilience')).toBe(true)
+  })
+
+  it('offers each subrace only to its own race', () => {
+    const subraces = dnd5e.collections.find((c) => c.id === 'subraces')!
+    const raceIds = new Set(dnd5e.collections.find((c) => c.id === 'races')!.entries.map((e) => e.id))
+    for (const entry of subraces.entries) {
+      const parents = (entry.tags ?? []).filter((tag) => raceIds.has(tag))
+      expect(parents.length, `${entry.name} should name exactly one parent race`).toBe(1)
+    }
+  })
+})
+
 describe('spellcasting', () => {
   it('gives a level-1 wizard the right slots and prepared count', () => {
     const state = createCharacter(dnd5e)
     state.name = 'Ilra'
     state.baseAbilityScores = { str: 8, dex: 14, con: 13, int: 15, wis: 12, cha: 10 }
     state.selections[stepKey('class')] = ['wizard']
-    state.selections[stepKey('race')] = ['elf'] // +1 INT, for 16 total
+    state.selections[stepKey('race')] = ['elf']
+    state.selections[choiceKey(entryPath(stepKey('race'), 'elf'), 'subrace')] = ['high-elf'] // +1 INT, for 16 total
 
     const derived = deriveCharacter(dnd5e, state)
     const wizard = derived.spellcasting.find((source) => source.id === 'wizard')!
@@ -192,6 +241,7 @@ describe('validation', () => {
     state.selections[choiceKey(classPath, 'equipment-armor')] = ['chain']
     state.selections[choiceKey(classPath, 'equipment-weapon')] = ['martial-shield']
     state.selections[choiceKey(racePath, 'tools')] = ["Smith's tools"]
+    state.selections[choiceKey(racePath, 'subrace')] = ['hill-dwarf']
     state.selections[choiceKey(entryPath(stepKey('background'), 'acolyte'), 'languages')] = ['Dwarvish', 'Elvish']
 
     const validation = validateCharacter(dnd5e, state, deriveCharacter(dnd5e, state))

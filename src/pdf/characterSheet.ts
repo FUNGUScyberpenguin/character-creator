@@ -1,6 +1,7 @@
 import type { Color, PDFDocument, PDFFont, PDFPage } from 'pdf-lib'
 
 import type { DerivedCharacter } from '../engine/derive'
+import { describeCharacter } from '../engine/derive'
 import type { Ruleset } from '../engine/types'
 import { spellLevelLabel } from '../rulesets/dnd5e/spells'
 
@@ -144,15 +145,8 @@ function drawHeader(sheet: Sheet, ruleset: Ruleset, derived: DerivedCharacter): 
 
   sheet.text(state.name || 'Unnamed character', MARGIN + 12, top - 24, { size: 18, font: sheet.fonts.bold })
 
-  const race = derived.resolution.picks['race']?.[0]?.name
-  const characterClass = derived.resolution.picks['class']?.[0]?.name
-  const background = derived.resolution.picks['background']?.[0]?.name
-  const subtitle = [
-    characterClass ? `${characterClass} ${derived.level}` : `Level ${derived.level}`,
-    race,
-    background,
-    state.identity['alignment'],
-  ]
+  const parts = describeCharacter(derived)
+  const subtitle = [...(parts.length ? parts : [`Level ${derived.level}`]), state.identity['alignment']]
     .filter(Boolean)
     .join('  |  ')
 
@@ -244,10 +238,7 @@ function drawCombatTiles(sheet: Sheet, derived: DerivedCharacter, x: number, y: 
 
     sheet.panel(tileX, cursor - tileHeight + 10, tileWidth, tileHeight)
     sheet.centered(stat.label.toUpperCase(), tileX + tileWidth / 2, cursor - 2, { size: 6.5, font: sheet.fonts.bold, color: MUTED })
-    sheet.centered(stat.signed ? signed(stat.value) : String(stat.value), tileX + tileWidth / 2, cursor - 22, {
-      size: 16,
-      font: sheet.fonts.bold,
-    })
+    sheet.centered(stat.display, tileX + tileWidth / 2, cursor - 22, { size: 16, font: sheet.fonts.bold })
   })
 
   cursor -= tileHeight + gap
@@ -255,8 +246,8 @@ function drawCombatTiles(sheet: Sheet, derived: DerivedCharacter, x: number, y: 
   const secondary = derived.derived.filter((stat) => stat.slot === 'secondary')
   for (const stat of secondary) {
     sheet.text(stat.label, x, cursor, { size: 8.5, color: MUTED })
-    const value = stat.signed ? signed(stat.value) : String(stat.value)
-    const w = sheet.fonts.bold.widthOfTextAtSize(value, 8.5)
+    const value = stat.display
+    const w = sheet.fonts.bold.widthOfTextAtSize(safe(value), 8.5)
     sheet.text(value, x + width - w, cursor, { size: 8.5, font: sheet.fonts.bold })
     cursor -= 11.5
   }

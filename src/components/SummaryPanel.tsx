@@ -1,5 +1,6 @@
 import { useState } from 'react'
 
+import { describeCharacter } from '../engine/derive'
 import { downloadCharacterSheet } from '../pdf/characterSheet'
 import { useStore } from '../state/store'
 
@@ -16,10 +17,7 @@ export function SummaryPanel() {
   const { ruleset, character, derived } = useStore()
   const [busy, setBusy] = useState(false)
 
-  const race = derived.resolution.picks['race']?.[0]?.name
-  const characterClass = derived.resolution.picks['class']?.[0]?.name
-  const background = derived.resolution.picks['background']?.[0]?.name
-  const descriptors = [characterClass ? `${characterClass} ${derived.level}` : null, race, background].filter(Boolean)
+  const descriptors = describeCharacter(derived)
 
   return (
     <aside className="summary">
@@ -34,7 +32,7 @@ export function SummaryPanel() {
           .map((stat) => (
             <div key={stat.id} className="tile" title={stat.description}>
               <span className="tile-label">{stat.label}</span>
-              <span className="tile-value">{stat.signed ? signed(stat.value) : stat.value}</span>
+              <span className="tile-value">{stat.display}</span>
             </div>
           ))}
       </div>

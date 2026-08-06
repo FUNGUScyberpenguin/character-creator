@@ -141,7 +141,9 @@ const entries: Entry[] = [
       },
     ],
     levels: mergeGrants(
-      tableGrants('rages', [2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 999]),
+      // 20th level is "unlimited" on the class table; the sheet says so in a
+      // note rather than printing a sentinel number as a rage count.
+      tableGrants('rages', [2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5, 6, 6, 6, 6]),
       tableGrants('rageDamage', [2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4]),
       [
         {
@@ -161,7 +163,15 @@ const entries: Entry[] = [
         { level: 11, effects: [feature('Relentless Rage', 'If you drop to 0 hit points while raging, make a DC 10 Constitution save to drop to 1 instead. The DC rises by 5 each time.')] },
         { level: 15, effects: [feature('Persistent Rage', 'Your rage ends early only if you fall unconscious or choose to end it.')] },
         { level: 18, effects: [feature('Indomitable Might', 'If your Strength check total is less than your Strength score, use the score instead.')] },
-        { level: 20, effects: [feature('Primal Champion', 'Your Strength and Constitution scores increase by 4, to a maximum of 24.'), { type: 'ability', ability: 'str', amount: 4 }, { type: 'ability', ability: 'con', amount: 4 }] },
+        {
+          level: 20,
+          effects: [
+            feature('Primal Champion', 'Your Strength and Constitution scores increase by 4, to a maximum of 24.'),
+            { type: 'ability', ability: 'str', amount: 4 },
+            { type: 'ability', ability: 'con', amount: 4 },
+            { type: 'note', text: 'At 20th level your number of rages is unlimited.' },
+          ],
+        },
       ],
       STANDARD_ASI_LEVELS.map(asi),
     ),

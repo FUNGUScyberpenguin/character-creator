@@ -57,6 +57,8 @@ export interface DerivedStatValue {
   id: string
   label: string
   value: number
+  /** What the sheet should print — the value, formatted per the ruleset. */
+  display: string
   signed: boolean
   slot: 'primary' | 'secondary' | 'combat'
   description?: string
@@ -82,6 +84,30 @@ export interface DerivedCharacter {
   derived: DerivedStatValue[]
   /** The variable context every formula was evaluated against. */
   context: Record<string, number>
+}
+
+/**
+ * The line under a character's name: class and level, then their picks, with
+ * any `descriptor` choice standing in for the pick it refines (so an Ironvein
+ * Dwarf reads as "Ironvein Dwarf" rather than "Dwarf, Ironvein Dwarf").
+ */
+export function describeCharacter(derived: DerivedCharacter): string[] {
+  const descriptors = derived.resolution.choices
+    .filter((choice) => choice.descriptor)
+    .flatMap((choice) => choice.selected.map((id) => choice.options.find((o) => o.id === id)?.name))
+    .filter((name): name is string => !!name)
+
+  const parts: string[] = []
+  for (const [stepId, entries] of Object.entries(derived.resolution.picks)) {
+    for (const entry of entries) {
+      const refinement = descriptors.find((d) => d.toLowerCase().includes(entry.name.toLowerCase()))
+      parts.push(refinement ?? entry.name)
+      if (stepId === 'class') parts[parts.length - 1] += ` ${derived.level}`
+    }
+  }
+  // Descriptors that did not fold into a pick still belong on the sheet.
+  for (const d of descriptors) if (!parts.includes(d)) parts.push(d)
+  return parts
 }
 
 export function abilityModifier(score: number): number {
@@ -227,14 +253,19 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
 
   const spellcasting = deriveSpellcasting(ruleset, state, effects, context, level, abilityModifiers)
 
-  const derived: DerivedStatValue[] = ruleset.derived.map((stat) => ({
-    id: stat.id,
-    label: stat.label,
-    value: evaluateInt(stat.formula, context),
-    signed: !!stat.signed,
-    slot: stat.slot ?? 'secondary',
-    description: stat.description,
-  }))
+  const derived: DerivedStatValue[] = ruleset.derived.map((stat) => {
+    const value = evaluateInt(stat.formula, context)
+    const plain = stat.signed ? (value >= 0 ? `+${value}` : `${value}`) : String(value)
+    return {
+      id: stat.id,
+      label: stat.label,
+      value,
+      display: stat.format ? formatStat(stat.format, value, plain, context, stats) : plain,
+      signed: !!stat.signed,
+      slot: stat.slot ?? 'secondary',
+      description: stat.description,
+    }
+  })
 
   // Derived values feed back into the context so later formulas — and the PDF —
   // can refer to them by id (e.g. a "passive perception" that reads `ac`).
@@ -259,6 +290,29 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
     derived,
     context,
   }
+}
+
+/**
+ * Fill a `{placeholder}` template. `{value}` is the formatted number; anything
+ * else is looked up in the formula context, then the stat bag (which is how a
+ * non-numeric stat such as a size or a damage type can appear on the sheet).
+ */
+function formatStat(
+  template: string,
+  value: number,
+  plain: string,
+  context: Record<string, number>,
+  stats: Record<string, number | string>,
+): string {
+  return template.replace(/\{([^}]+)\}/g, (_match, name: string) => {
+    if (name === 'value') return plain
+    if (name === 'raw') return String(value)
+    const fromContext = context[name]
+    if (fromContext !== undefined) return String(fromContext)
+    const key = name.startsWith('stat.') ? name.slice(5) : name
+    const fromStats = stats[key]
+    return fromStats === undefined ? '' : String(fromStats)
+  })
 }
 
 function addItem(list: InventoryItem[], name: string, quantity: number): void {

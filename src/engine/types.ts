@@ -125,6 +125,11 @@ export interface Choice {
   source: ChoiceSource
   /** Only offer this choice once the character reaches this level. */
   minLevel?: number
+  /**
+   * The selection helps name the character (a subrace, a bloodline) and so
+   * belongs in the line under their name rather than only in their features.
+   */
+  descriptor?: boolean
 }
 
 // ---------------------------------------------------------------------------
@@ -233,6 +238,12 @@ export interface DerivedStat {
   slot?: 'primary' | 'secondary' | 'combat'
   /** Render with a leading + or - (attack bonuses, initiative). */
   signed?: boolean
+  /**
+   * Template for how the value is written on the sheet. `{value}` is the result
+   * of `formula`; any other `{name}` is looked up in the formula context, so
+   * hit dice can read `"{value}d{stat.hitDie}"` and print `5d6`.
+   */
+  format?: string
   description?: string
 }
 

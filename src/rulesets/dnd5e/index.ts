@@ -4,7 +4,7 @@ import { backgrounds } from './backgrounds'
 import { classes } from './classes'
 import { equipment } from './equipment'
 import { fightingStyles, invocations, metamagic, pactBoons, subclasses } from './features'
-import { races } from './races'
+import { races, subraces } from './races'
 import { spellCollection } from './spells'
 
 /**
@@ -126,7 +126,8 @@ const derived: DerivedStat[] = [
     label: 'Hit Dice',
     slot: 'secondary',
     formula: 'level',
-    description: 'One hit die per level, of your class’s size.',
+    format: '{value}d{stat.hitDie}',
+    description: 'One hit die per level, of your class’s size. Spent to heal on a short rest.',
   },
 ]
 
@@ -241,7 +242,7 @@ export const dnd5e: Ruleset = {
   skills,
   proficiencyCategories,
   abilityMethods,
-  collections: [races, classes, backgrounds, subclasses, fightingStyles, metamagic, invocations, pactBoons, equipment, spellCollection],
+  collections: [races, subraces, classes, backgrounds, subclasses, fightingStyles, metamagic, invocations, pactBoons, equipment, spellCollection],
   steps,
   derived,
   spellSlotTables: {

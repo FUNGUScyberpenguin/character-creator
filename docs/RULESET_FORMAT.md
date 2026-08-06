@@ -97,6 +97,7 @@ A choice renders as a block of selectable options with a progress counter.
   count: 1,                  // how many to pick (default 1)
   allowDuplicates: false,    // true for "+1 to the same ability twice"
   minLevel: 4,               // hide it until the character is high enough
+  descriptor: true,          // the selection helps *name* the character
   source: { /* where the options come from */ },
 }
 ```
@@ -113,7 +114,14 @@ The source decides what the options are:
 
 Options can carry their own `choices`, and the engine recurses. Picking a class
 that grants a subclass, which grants its own choice at 10th level, resolves
-without any special-casing.
+without any special-casing. Subraces work the same way: the race declares a
+choice against a `subraces` collection filtered by tag, and the subrace's own
+traits live on its entry.
+
+Marking a choice `descriptor: true` puts the selection in the line under the
+character's name. Where the selection already contains the name of the pick it
+refines — "Ironvein Dwarf" against a "Dwarf" — it replaces it rather than
+repeating it.
 
 ### Selection keys
 
@@ -174,6 +182,10 @@ decides when to deal with it.
 
 `slot` places the value: `primary` becomes a big tile, `secondary` a list row.
 Set `signed: true` for values that should read `+3` rather than `3`.
+
+`format` controls how the value is written. `{value}` is the formatted number
+and any other `{name}` is read from the formula context, so hit dice declare
+`format: '{value}d{stat.hitDie}'` and print `5d10`.
 
 ### What formulas can see
 

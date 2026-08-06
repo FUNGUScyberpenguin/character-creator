@@ -21,6 +21,8 @@ export interface ResolvedChoice {
   source: string
   /** Step this choice belongs to, so the UI can show it in the right place. */
   stepId: string
+  /** Selections here help name the character; see Choice.descriptor. */
+  descriptor: boolean
   satisfied: boolean
 }
 
@@ -154,6 +156,7 @@ function walkChoices(context: WalkContext, choices: Choice[], ownerPath: string,
       selected,
       source: ownerName,
       stepId: context.stepId,
+      descriptor: !!choice.descriptor,
       satisfied: selected.length >= count,
     })
 

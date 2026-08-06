@@ -2,9 +2,15 @@ import type { Collection, Effect, Entry } from '../../engine/types'
 import { allSkillIds, selectableLanguages } from './basics'
 
 /**
- * The nine races of SRD 5.1. Each SRD race publishes exactly one subrace, so
- * those traits are folded straight into the parent entry rather than hidden
- * behind a choice with a single option.
+ * The nine races of SRD 5.1, plus subraces.
+ *
+ * Base-race traits live on the race; anything a subrace adds lives in the
+ * `subraces` collection below and is reached through a choice, so a race that
+ * gains new subraces later needs no change here.
+ *
+ * SRD 5.1 publishes exactly one subrace per subraced race. The extra options
+ * marked "original" are written for this project and released under the
+ * repository's MIT licence — they are homebrew, and any DM may say no.
  */
 
 const darkvision = (range: number): Effect => ({ type: 'set', stat: 'darkvision', value: range })
@@ -17,6 +23,14 @@ const extraLanguage = (id: string, prompt: string) => ({
   prompt,
   count: 1,
   source: { kind: 'proficiencies' as const, category: 'language', from: selectableLanguages },
+})
+
+const subraceChoice = (tag: string, prompt = 'Subrace') => ({
+  id: 'subrace',
+  prompt,
+  count: 1,
+  descriptor: true,
+  source: { kind: 'collection' as const, collection: 'subraces', tag },
 })
 
 const dragonAncestries: { id: string; name: string; damage: string; breath: string }[] = [
@@ -35,15 +49,14 @@ const dragonAncestries: { id: string; name: string; damage: string; breath: stri
 const entries: Entry[] = [
   {
     id: 'dwarf',
-    name: 'Dwarf (Hill Dwarf)',
+    name: 'Dwarf',
     icon: '⛏️',
-    summary: 'Stout, stubborn, and hard to put down. Tough enough to take a hit meant for someone else.',
+    summary: 'Stout, stubborn, and hard to put down. At home underground and unimpressed by heights.',
     description:
-      'Bold and hardy, dwarves are known as skilled warriors, miners, and workers of stone and metal. Hill dwarves add keen senses and remarkable resilience on top of that.',
+      'Bold and hardy, dwarves are known as skilled warriors, miners, and workers of stone and metal. Centuries of life below ground shape both their senses and their grudges.',
     meta: { Speed: '25 ft.', Size: 'Medium', Darkvision: '60 ft.' },
     effects: [
       { type: 'ability', ability: 'con', amount: 2 },
-      { type: 'ability', ability: 'wis', amount: 1 },
       speed(25),
       size('Medium'),
       darkvision(60),
@@ -53,7 +66,6 @@ const entries: Entry[] = [
       { type: 'proficiency', category: 'weapon', value: 'Handaxe' },
       { type: 'proficiency', category: 'weapon', value: 'Light hammer' },
       { type: 'proficiency', category: 'weapon', value: 'Warhammer' },
-      { type: 'bonus', stat: 'hpPerLevel', amount: 1 },
       {
         type: 'feature',
         name: 'Dwarven Resilience',
@@ -65,14 +77,10 @@ const entries: Entry[] = [
         description:
           'Whenever you make an Intelligence (History) check related to the origin of stonework, you are considered proficient and add double your proficiency bonus.',
       },
-      {
-        type: 'feature',
-        name: 'Dwarven Toughness',
-        description: 'Your hit point maximum increases by 1, and by 1 again every time you gain a level.',
-      },
       { type: 'note', text: 'Speed is not reduced by wearing heavy armor.' },
     ],
     choices: [
+      subraceChoice('dwarf'),
       {
         id: 'tools',
         prompt: 'Dwarven artisan training',
@@ -87,25 +95,20 @@ const entries: Entry[] = [
 
   {
     id: 'elf',
-    name: 'Elf (High Elf)',
+    name: 'Elf',
     icon: '🏹',
     summary: 'Graceful, long-lived, and quietly certain they have seen this all before.',
     description:
-      'Elves are a magical people of otherworldly grace, living in places of ethereal beauty. High elves have a keen mind and a mastery of at least the basics of magic.',
+      'Elves are a magical people of otherworldly grace, living in places of ethereal beauty. They sleep rarely, notice everything, and measure patience in decades.',
     meta: { Speed: '30 ft.', Size: 'Medium', Darkvision: '60 ft.' },
     effects: [
       { type: 'ability', ability: 'dex', amount: 2 },
-      { type: 'ability', ability: 'int', amount: 1 },
       speed(30),
       size('Medium'),
       darkvision(60),
       language('Common'),
       language('Elvish'),
       { type: 'proficiency', category: 'skill', value: 'perception' },
-      { type: 'proficiency', category: 'weapon', value: 'Longsword' },
-      { type: 'proficiency', category: 'weapon', value: 'Shortsword' },
-      { type: 'proficiency', category: 'weapon', value: 'Shortbow' },
-      { type: 'proficiency', category: 'weapon', value: 'Longbow' },
       {
         type: 'feature',
         name: 'Fey Ancestry',
@@ -117,26 +120,20 @@ const entries: Entry[] = [
         description:
           'You do not sleep. You meditate deeply for 4 hours a day and gain the same benefit others get from 8 hours of sleep.',
       },
-      {
-        type: 'feature',
-        name: 'Cantrip',
-        description: 'You know one cantrip of your choice from the wizard spell list. Intelligence is your casting ability for it.',
-      },
     ],
-    choices: [extraLanguage('language', 'Extra language')],
+    choices: [subraceChoice('elf'), extraLanguage('language', 'Extra language')],
   },
 
   {
     id: 'halfling',
-    name: 'Halfling (Lightfoot)',
+    name: 'Halfling',
     icon: '🍀',
-    summary: 'Small, cheerful, and improbably lucky. Very good at not being seen.',
+    summary: 'Small, cheerful, and improbably lucky.',
     description:
-      'Halflings avoid trouble where they can, but they are braver than their size suggests. Lightfoot halflings are especially good at slipping out of sight.',
+      'Halflings avoid trouble where they can, but they are braver than their size suggests — and luck has a way of finding them at the worst possible moment.',
     meta: { Speed: '25 ft.', Size: 'Small' },
     effects: [
       { type: 'ability', ability: 'dex', amount: 2 },
-      { type: 'ability', ability: 'cha', amount: 1 },
       speed(25),
       size('Small'),
       language('Common'),
@@ -156,12 +153,8 @@ const entries: Entry[] = [
         name: 'Halfling Nimbleness',
         description: 'You can move through the space of any creature that is of a size larger than yours.',
       },
-      {
-        type: 'feature',
-        name: 'Naturally Stealthy',
-        description: 'You can attempt to hide even when obscured only by a creature at least one size larger than you.',
-      },
     ],
+    choices: [subraceChoice('halfling')],
   },
 
   {
@@ -234,39 +227,26 @@ const entries: Entry[] = [
 
   {
     id: 'gnome',
-    name: 'Gnome (Rock Gnome)',
+    name: 'Gnome',
     icon: '⚙️',
-    summary: 'Small, brilliant, and endlessly curious. Prone to inventing things nobody asked for.',
+    summary: 'Small, brilliant, and endlessly curious.',
     description:
-      'A gnome’s energy and enthusiasm for living shines through every inch of their tiny body. Rock gnomes have a natural inventiveness and hardiness.',
+      'A gnome’s energy and enthusiasm for living shines through every inch of their tiny body, usually in the direction of a question nobody else thought to ask.',
     meta: { Speed: '25 ft.', Size: 'Small', Darkvision: '60 ft.' },
     effects: [
       { type: 'ability', ability: 'int', amount: 2 },
-      { type: 'ability', ability: 'con', amount: 1 },
       speed(25),
       size('Small'),
       darkvision(60),
       language('Common'),
       language('Gnomish'),
-      { type: 'proficiency', category: 'tool', value: "Tinker's tools" },
       {
         type: 'feature',
         name: 'Gnome Cunning',
         description: 'You have advantage on all Intelligence, Wisdom, and Charisma saving throws against magic.',
       },
-      {
-        type: 'feature',
-        name: "Artificer's Lore",
-        description:
-          'Whenever you make an Intelligence (History) check related to magic items, alchemical objects, or technological devices, you add twice your proficiency bonus.',
-      },
-      {
-        type: 'feature',
-        name: 'Tinker',
-        description:
-          'Using tinker’s tools, you can spend 1 hour and 10 gp of materials to construct a Tiny clockwork device that lasts 24 hours.',
-      },
     ],
+    choices: [subraceChoice('gnome')],
   },
 
   {
@@ -375,4 +355,179 @@ export const races: Collection = {
   label: 'Races',
   singular: 'Race',
   entries,
+}
+
+/** Marks an entry as homebrew rather than SRD, in the card summary and the tags. */
+const ORIGINAL = 'Original to this project — homebrew, so check with your DM.'
+
+const subraceEntries: Entry[] = [
+  // ------------------------------------------------------------------ dwarf
+  {
+    id: 'hill-dwarf',
+    name: 'Hill Dwarf',
+    tags: ['dwarf', 'srd'],
+    icon: '🏔️',
+    summary: 'Keen senses and deep endurance. The toughest of the dwarves.',
+    description: 'As a hill dwarf you have keen senses, deep intuition, and remarkable resilience. (SRD 5.1)',
+    effects: [
+      { type: 'ability', ability: 'wis', amount: 1 },
+      { type: 'bonus', stat: 'hpPerLevel', amount: 1 },
+      {
+        type: 'feature',
+        name: 'Dwarven Toughness',
+        description: 'Your hit point maximum increases by 1, and by 1 again every time you gain a level.',
+      },
+    ],
+  },
+  {
+    id: 'ironvein-dwarf',
+    name: 'Ironvein Dwarf',
+    tags: ['dwarf', 'homebrew'],
+    icon: '🛡️',
+    summary: 'Raised in the forge-halls, drilled in armour from childhood.',
+    description: `Ironvein clans hold the deep smithies, and every one of them is taught to fight in plate before they are taught to read. ${ORIGINAL}`,
+    effects: [
+      { type: 'ability', ability: 'str', amount: 1 },
+      { type: 'proficiency', category: 'armor', value: 'Light armor' },
+      { type: 'proficiency', category: 'armor', value: 'Medium armor' },
+      {
+        type: 'feature',
+        name: 'Forge-Drilled',
+        description:
+          'You are proficient with light and medium armor, and you can sleep in medium armor without gaining exhaustion from it.',
+      },
+    ],
+  },
+
+  // -------------------------------------------------------------------- elf
+  {
+    id: 'high-elf',
+    name: 'High Elf',
+    tags: ['elf', 'srd'],
+    icon: '📘',
+    summary: 'A keen mind, a blade, and at least the basics of wizardry.',
+    description: 'You have a keen mind and a mastery of at least the basics of magic. (SRD 5.1)',
+    effects: [
+      { type: 'ability', ability: 'int', amount: 1 },
+      { type: 'proficiency', category: 'weapon', value: 'Longsword' },
+      { type: 'proficiency', category: 'weapon', value: 'Shortsword' },
+      { type: 'proficiency', category: 'weapon', value: 'Shortbow' },
+      { type: 'proficiency', category: 'weapon', value: 'Longbow' },
+      {
+        type: 'feature',
+        name: 'Elf Weapon Training',
+        description: 'You have proficiency with the longsword, shortsword, shortbow, and longbow.',
+      },
+      {
+        type: 'feature',
+        name: 'Cantrip',
+        description:
+          'You know one cantrip of your choice from the wizard spell list. Intelligence is your spellcasting ability for it.',
+      },
+    ],
+  },
+  {
+    id: 'greenwarden-elf',
+    name: 'Greenwarden Elf',
+    tags: ['elf', 'homebrew'],
+    icon: '🌲',
+    summary: 'Forest-born, and impossible to slow down in the deep woods.',
+    description: `Greenwardens keep the old forests and rarely leave them willingly. ${ORIGINAL}`,
+    effects: [
+      { type: 'ability', ability: 'wis', amount: 1 },
+      { type: 'proficiency', category: 'skill', value: 'nature' },
+      {
+        type: 'feature',
+        name: 'Woodwise',
+        description:
+          'Difficult terrain made of undergrowth, brambles, or roots costs you no extra movement, and you have advantage on Survival checks made in forest.',
+      },
+    ],
+  },
+
+  // --------------------------------------------------------------- halfling
+  {
+    id: 'lightfoot-halfling',
+    name: 'Lightfoot Halfling',
+    tags: ['halfling', 'srd'],
+    icon: '🌾',
+    summary: 'Sociable, quick to charm, and very good at not being seen.',
+    description: 'You can easily hide, even using other people as cover. Lightfoots are the most sociable halflings. (SRD 5.1)',
+    effects: [
+      { type: 'ability', ability: 'cha', amount: 1 },
+      {
+        type: 'feature',
+        name: 'Naturally Stealthy',
+        description: 'You can attempt to hide even when obscured only by a creature at least one size larger than you.',
+      },
+    ],
+  },
+  {
+    id: 'hearthstout-halfling',
+    name: 'Hearthstout Halfling',
+    tags: ['halfling', 'homebrew'],
+    icon: '🍲',
+    summary: 'Built by good food and hard winters. Hard to wear down.',
+    description: `Hearthstouts come from the high farm country, where a bad season is survived rather than avoided. ${ORIGINAL}`,
+    effects: [
+      { type: 'ability', ability: 'con', amount: 1 },
+      {
+        type: 'feature',
+        name: 'Well Provisioned',
+        description:
+          'You can go twice as long as normal without food or water before suffering exhaustion, and you have advantage on Constitution saving throws against disease.',
+      },
+    ],
+  },
+
+  // ------------------------------------------------------------------ gnome
+  {
+    id: 'rock-gnome',
+    name: 'Rock Gnome',
+    tags: ['gnome', 'srd'],
+    icon: '🔧',
+    summary: 'A natural inventor, hardier than a gnome has any right to be.',
+    description: 'You have a natural inventiveness and hardiness beyond that of other gnomes. (SRD 5.1)',
+    effects: [
+      { type: 'ability', ability: 'con', amount: 1 },
+      { type: 'proficiency', category: 'tool', value: "Tinker's tools" },
+      {
+        type: 'feature',
+        name: "Artificer's Lore",
+        description:
+          'Whenever you make an Intelligence (History) check related to magic items, alchemical objects, or technological devices, you add twice your proficiency bonus.',
+      },
+      {
+        type: 'feature',
+        name: 'Tinker',
+        description:
+          'Using tinker’s tools, you can spend 1 hour and 10 gp of materials to construct a Tiny clockwork device that lasts 24 hours.',
+      },
+    ],
+  },
+  {
+    id: 'wildroot-gnome',
+    name: 'Wildroot Gnome',
+    tags: ['gnome', 'homebrew'],
+    icon: '🍄',
+    summary: 'Burrow-dwellers who talk to the local wildlife and mean it.',
+    description: `Wildroot warrens are dug under hedgerows and root systems, and their neighbours have four legs. ${ORIGINAL}`,
+    effects: [
+      { type: 'ability', ability: 'dex', amount: 1 },
+      { type: 'proficiency', category: 'skill', value: 'stealth' },
+      {
+        type: 'feature',
+        name: 'Speech of the Undergrowth',
+        description:
+          'You can communicate simple ideas to Small or smaller beasts, and understand what they convey in return.',
+      },
+    ],
+  },
+]
+
+export const subraces: Collection = {
+  id: 'subraces',
+  label: 'Subraces',
+  singular: 'Subrace',
+  entries: subraceEntries,
 }

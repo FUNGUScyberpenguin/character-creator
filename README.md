@@ -36,7 +36,7 @@ The bundled **D&D 5e (SRD 5.1)** ruleset covers:
 | | |
 |---|---|
 | Classes | All 12, with features for levels 1–20 and their SRD subclass |
-| Races | All 9, including the traits and choices each grants |
+| Races | All 9, with subraces (SRD, plus clearly-marked homebrew) |
 | Backgrounds | Acolyte (SRD) plus 8 original backgrounds, MIT-licensed |
 | Spells | The full SRD list, levels 0–9, filtered by class and slot level |
 | Equipment | SRD weapons, armour, packs and adventuring gear |
