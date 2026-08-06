@@ -1889,3 +1889,29 @@ body {
   text-decoration: none;
   font-size: 14px;
 }
+
+.inventory-worn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: auto;
+  margin-right: 10px;
+  font-size: 11.5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.inventory-worn input {
+  width: auto;
+  flex: none;
+  margin: 0;
+}
+
+.inventory-row.is-worn {
+  border-color: var(--accent);
+}
+
+.inventory-row.is-worn .inventory-name {
+  font-weight: 600;
+}

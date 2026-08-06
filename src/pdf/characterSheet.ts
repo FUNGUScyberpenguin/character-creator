@@ -291,6 +291,20 @@ function drawCombatTiles(sheet: Sheet, derived: DerivedCharacter, x: number, y: 
 
   cursor -= tileHeight + gap
 
+  // Say what the Armor Class is made of, so the number can be checked.
+  const { worn, shields } = derived.armor
+  if (worn || shields.length) {
+    const parts = [
+      worn ? `${worn.name} ${worn.base}${worn.dexApplied ? ` + ${worn.dexApplied} DEX` : ''}` : '',
+      ...shields.map((shield) => `${shield.name} +${shield.bonus}`),
+    ].filter(Boolean)
+    for (const line of wrap(`AC from ${parts.join(', ')}`, sheet.fonts.regular, 7, width, 2)) {
+      sheet.text(line, x, cursor, { size: 7, color: MUTED })
+      cursor -= 9
+    }
+    cursor -= 3
+  }
+
   const secondary = derived.derived.filter((stat) => stat.slot === 'secondary')
   for (const stat of secondary) {
     sheet.text(stat.label, x, cursor, { size: 8.5, color: MUTED })

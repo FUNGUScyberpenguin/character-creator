@@ -474,3 +474,85 @@ describe('guided picking', () => {
     }
   })
 })
+
+describe('armour and Armor Class', () => {
+  /** A fighter — proficient with all armour — with DEX 14 (+2). */
+  function armoured(items: string[], equipped: string[] = items) {
+    const state = createCharacter(dnd5e)
+    state.baseAbilityScores = { str: 15, dex: 14, con: 14, int: 10, wis: 10, cha: 10 }
+    state.selections[stepKey('class')] = ['fighter']
+    state.inventory = items.map((name) => ({ name, quantity: 1 }))
+    state.equipped = equipped
+    return state
+  }
+
+  const acOf = (state: ReturnType<typeof armoured>) => statOf(deriveCharacter(dnd5e, state), 'ac')
+
+  it('leaves AC alone until armour is actually worn', () => {
+    expect(acOf(armoured([], []))).toBe(12) // 10 + DEX
+    expect(acOf(armoured(['Chain mail'], []))).toBe(12) // carried, not worn
+    expect(acOf(armoured(['Chain mail']))).toBe(16)
+  })
+
+  it('applies each armour category’s Dexterity rule', () => {
+    expect(acOf(armoured(['Leather armor']))).toBe(13) // light: 11 + full DEX
+    expect(acOf(armoured(['Scale mail']))).toBe(16) // medium: 14 + DEX capped at 2
+    expect(acOf(armoured(['Plate armor']))).toBe(18) // heavy: flat 18, no DEX
+  })
+
+  it('caps the Dexterity bonus on medium armour', () => {
+    const state = armoured(['Scale mail'])
+    state.baseAbilityScores['dex'] = 20 // +5, but the cap is +2
+    expect(acOf(state)).toBe(16)
+    expect(deriveCharacter(dnd5e, state).armor.worn?.dexApplied).toBe(2)
+  })
+
+  it('stacks a shield on top of armour', () => {
+    expect(acOf(armoured(['Chain mail', 'Shield']))).toBe(18)
+  })
+
+  it('stacks a shield on top of Unarmored Defense', () => {
+    const state = armoured(['Shield'])
+    state.selections[stepKey('class')] = ['barbarian']
+    state.baseAbilityScores = { str: 15, dex: 14, con: 16, int: 10, wis: 10, cha: 10 }
+    // 10 + 2 DEX + 3 CON, then +2 for the shield.
+    expect(acOf(state)).toBe(17)
+  })
+
+  it('keeps a fighting style bonus on top of worn armour', () => {
+    const state = armoured(['Chain mail'])
+    state.selections[choiceKey(entryPath(stepKey('class'), 'fighter'), 'fighting-style')] = ['defense']
+    expect(acOf(state)).toBe(17)
+  })
+
+  it('warns about a Strength requirement without blocking it', () => {
+    const state = armoured(['Plate armor'])
+    state.baseAbilityScores['str'] = 10
+    const derived = deriveCharacter(dnd5e, state)
+    expect(statOf(derived, 'ac')).toBe(18)
+    expect(derived.armor.warnings.join(' ')).toContain('Strength 15')
+  })
+
+  it('warns when you are not proficient with what you are wearing', () => {
+    const state = armoured(['Plate armor'])
+    state.selections[stepKey('class')] = ['wizard'] // no armour proficiency at all
+    const warnings = deriveCharacter(dnd5e, state).armor.warnings.join(' ')
+    expect(warnings).toContain('not proficient')
+    // Still counted: the rules penalise you, they do not stop you.
+    expect(statOf(deriveCharacter(dnd5e, state), 'ac')).toBe(18)
+  })
+
+  it('counts only the best set when two are somehow worn', () => {
+    const state = armoured(['Leather armor', 'Plate armor'])
+    const derived = deriveCharacter(dnd5e, state)
+    expect(derived.armor.worn?.name).toBe('Plate armor')
+    expect(statOf(derived, 'ac')).toBe(18)
+    expect(derived.armor.warnings.join(' ')).toContain('more than one set')
+  })
+
+  it('survives a save and load', () => {
+    const restored = normalizeCharacter(JSON.parse(JSON.stringify(armoured(['Chain mail', 'Shield']))), dnd5e)
+    expect(restored.equipped).toEqual(['Chain mail', 'Shield'])
+    expect(statOf(deriveCharacter(dnd5e, restored), 'ac')).toBe(18)
+  })
+})

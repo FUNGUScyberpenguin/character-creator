@@ -65,6 +65,18 @@ export interface DerivedAttack {
   proficient: boolean
 }
 
+/** What the character is wearing, and what it does for them. */
+export interface DerivedArmor {
+  /** Body armour being worn, if any. */
+  worn?: { name: string; base: number; dexApplied: number; dexMax?: number }
+  /** Shields being held. */
+  shields: { name: string; bonus: number }[]
+  /** Total Armor Class contributed by worn gear, before class features. */
+  armorClass?: number
+  /** Problems worth telling the player about, in plain language. */
+  warnings: string[]
+}
+
 /** Something the character can do, grouped by when they can do it. */
 export interface DerivedAction {
   name: string
@@ -103,6 +115,7 @@ export interface DerivedCharacter {
   resources: DerivedResource[]
   spellcasting: DerivedSpellcasting[]
   inventory: InventoryItem[]
+  armor: DerivedArmor
   attacks: DerivedAttack[]
   actions: DerivedAction[]
   notes: string[]
@@ -309,6 +322,19 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
   const inventory = [...granted]
   for (const item of state.inventory) addItem(inventory, item.name, item.quantity)
 
+  const armor = deriveArmor(ruleset, state, inventory, proficiencies, abilityScores, abilityModifiers)
+
+  // Worn gear reaches the sheet through the stat bag, so the ruleset's own
+  // Armor Class formula decides what to do with it.
+  stats['armorAC'] = armor.armorClass ?? 0
+  stats['shieldBonus'] = armor.shields.reduce((total, shield) => total + shield.bonus, 0)
+  stats['wearingArmor'] = armor.worn ? 1 : 0
+  context['stat.armorAC'] = Number(stats['armorAC'])
+  context['stat.shieldBonus'] = Number(stats['shieldBonus'])
+  context['stat.wearingArmor'] = Number(stats['wearingArmor'])
+
+  notes.push(...armor.warnings)
+
   const attacks = deriveAttacks(ruleset, inventory, proficiencies, abilityModifiers, context)
 
   // Sort actions into the order the ruleset declares its timings.
@@ -355,6 +381,7 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
     resources,
     spellcasting,
     inventory,
+    armor,
     attacks,
     actions,
     notes,
@@ -362,6 +389,91 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
     derived,
     context,
   }
+}
+
+/**
+ * Work out what worn armour does.
+ *
+ * Only equipped items count: a breastplate in your pack protects nothing. When
+ * several pieces of body armour are worn — which the rules do not allow but a
+ * half-finished character often has — the best one is used and the rest ignored.
+ */
+function deriveArmor(
+  ruleset: Ruleset,
+  state: CharacterState,
+  inventory: InventoryItem[],
+  proficiencies: Record<string, { value: string; expertise: boolean }[]>,
+  abilityScores: Record<string, number>,
+  abilityModifiers: Record<string, number>,
+): DerivedArmor {
+  const result: DerivedArmor = { shields: [], warnings: [] }
+  const rules = ruleset.armor
+  const collection = rules ? findCollection(ruleset, rules.collection) : undefined
+  if (!rules || !collection) return result
+
+  const baseKey = rules.baseKey ?? 'acBase'
+  const dexMaxKey = rules.dexMaxKey ?? 'acDexMax'
+  const bonusKey = rules.bonusKey ?? 'acBonus'
+  const strengthKey = rules.strengthKey ?? 'strengthMin'
+  const dexMod = abilityModifiers[rules.ability ?? 'dex'] ?? 0
+  const held = (proficiencies[rules.proficiencyCategory ?? 'armor'] ?? []).map((item) => item.value.toLowerCase())
+
+  const equipped = new Set(state.equipped.map((name) => name.toLowerCase()))
+  const worn = inventory
+    .filter((item) => equipped.has(item.name.toLowerCase()))
+    .map((item) => collection.entries.find((entry) => entry.name.toLowerCase() === item.name.toLowerCase()))
+    .filter((entry): entry is Entry => !!entry && (entry.tags ?? []).includes(rules.tag))
+
+  const bodyArmor = worn.filter((entry) => !rules.shieldTag || !(entry.tags ?? []).includes(rules.shieldTag))
+  const shields = worn.filter((entry) => rules.shieldTag && (entry.tags ?? []).includes(rules.shieldTag))
+
+  for (const entry of shields) {
+    result.shields.push({ name: entry.name, bonus: Number(entry.meta?.[bonusKey] ?? 0) })
+  }
+
+  // Pick whichever worn armour actually protects best.
+  let best: DerivedArmor['worn']
+  for (const entry of bodyArmor) {
+    const base = Number(entry.meta?.[baseKey] ?? 0)
+    if (!base) continue
+    const rawMax = entry.meta?.[dexMaxKey]
+    const dexMax = rawMax === undefined ? undefined : Number(rawMax)
+    const dexApplied = dexMax === undefined ? dexMod : Math.min(dexMod, dexMax)
+    const total = base + dexApplied
+    if (!best || total > best.base + best.dexApplied) {
+      best = { name: entry.name, base, dexApplied, ...(dexMax === undefined ? {} : { dexMax }) }
+    }
+  }
+
+  if (bodyArmor.length > 1) {
+    result.warnings.push(`You have more than one set of armor equipped; only ${best?.name ?? 'one'} is counted.`)
+  }
+
+  if (best) {
+    result.worn = best
+    result.armorClass = best.base + best.dexApplied
+  }
+
+  // Requirements and penalties the player should know about, not be blocked by.
+  for (const entry of [...bodyArmor, ...shields]) {
+    const required = Number(entry.meta?.[strengthKey] ?? 0)
+    const strength = abilityScores[rules.strengthAbility ?? 'str'] ?? 10
+    if (required && strength < required) {
+      result.warnings.push(`${entry.name} requires Strength ${required}; yours is ${strength}, so your speed drops by 10 feet.`)
+    }
+
+    const categories = (entry.tags ?? []).filter((tag) => tag !== rules.tag)
+    const covering = categories.flatMap((tag) => rules.blanketProficiencies?.[tag] ?? [])
+    const proficient =
+      held.includes(entry.name.toLowerCase()) || covering.some((value) => held.includes(value.toLowerCase()))
+    if (!proficient) {
+      result.warnings.push(
+        `You are not proficient with ${entry.name}: disadvantage on ability checks, saves and attacks using Strength or Dexterity, and you cannot cast spells.`,
+      )
+    }
+  }
+
+  return result
 }
 
 /**

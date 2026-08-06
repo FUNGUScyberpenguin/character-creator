@@ -30,6 +30,7 @@ interface StoreValue {
   setIdentityField: (id: string, value: string) => void
   setAbilityScore: (ability: string, score: number) => void
   setInventory: (items: InventoryItem[]) => void
+  toggleEquipped: (name: string) => void
   toggleSpell: (sourceId: string, spellId: string) => void
   setOverride: (statId: string, override: { value: number; note?: string } | null) => void
   setCustomFeatures: (features: CustomFeature[]) => void
@@ -175,6 +176,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setCharacter((current) => ({ ...current, inventory: items, updatedAt: new Date().toISOString() }))
   }, [])
 
+  const toggleEquipped = useCallback((name: string) => {
+    setCharacter((current) => {
+      const has = current.equipped.some((value) => value.toLowerCase() === name.toLowerCase())
+      return {
+        ...current,
+        equipped: has
+          ? current.equipped.filter((value) => value.toLowerCase() !== name.toLowerCase())
+          : [...current.equipped, name],
+        updatedAt: new Date().toISOString(),
+      }
+    })
+  }, [])
+
   const toggleSpell = useCallback((sourceId: string, spellId: string) => {
     setCharacter((current) => {
       const chosen = current.spells[sourceId] ?? []
@@ -255,6 +269,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setIdentityField,
     setAbilityScore,
     setInventory,
+    toggleEquipped,
     toggleSpell,
     setOverride,
     setCustomFeatures,

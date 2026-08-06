@@ -49,7 +49,8 @@ The bundled **D&D 5e (SRD 5.1)** ruleset covers:
 | Ability scores | Standard array, point buy, 4d6-drop-lowest, or manual entry |
 
 Hit points, armour class, saves, skills, spell slots, save DCs and prepared-spell
-counts are all computed from your choices as you make them.
+counts are all computed from your choices as you make them — including armour,
+which only counts once you tick it as worn.
 
 ## How it works
 

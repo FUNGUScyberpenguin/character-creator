@@ -198,6 +198,34 @@ that matches wins; listing several abilities takes the best of them. Both
 formulas see `weaponMod` and `proficient` (1 or 0) on top of the usual context.
 Omit `weapons` entirely and the sheet just lists equipment.
 
+**Worn armour becomes defence** when the ruleset declares how to read it:
+
+```ts
+armor: {
+  collection: 'equipment',
+  tag: 'armor',
+  shieldTag: 'shield',        // shields stack on top of body armour
+  ability: 'dex',             // added, subject to the armour's own cap
+  proficiencyCategory: 'armor',
+  blanketProficiencies: { heavy: ['Heavy armor', 'All armor'] },
+}
+```
+
+Armour entries carry the rule in `meta` alongside the prose: `acBase`, an
+optional `acDexMax` (omitted means the full modifier applies, `0` means none),
+and an optional `strengthMin`. The engine writes the result into the stat bag as
+`stat.armorAC`, `stat.shieldBonus` and `stat.wearingArmor`, and the ruleset's own
+formula decides what to do with them:
+
+```ts
+formula: 'if(stat.wearingArmor, stat.armorAC, 10 + dex.mod) + stat.shieldBonus + stat.acBonus'
+```
+
+Only *equipped* items count — carrying a breastplate protects nothing — so
+`CharacterState.equipped` tracks what is actually being worn. Requirements you
+fail and armour you are not proficient with produce warnings rather than
+refusals: the rules penalise those, they do not forbid them.
+
 ## Helping someone choose
 
 A collection can declare `facets` — filters phrased as questions about what the

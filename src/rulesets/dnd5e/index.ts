@@ -85,9 +85,11 @@ const derived: DerivedStat[] = [
     id: 'ac',
     label: 'Armor Class',
     slot: 'primary',
+    // Worn armour replaces the unarmoured base entirely; shields and feature
+    // bonuses stack on top of whichever applies.
     formula:
-      'if(stat.unarmoredDefense, 10 + dex.mod + con.mod, if(stat.unarmoredDefenseWis, 10 + dex.mod + wis.mod, if(stat.draconicResilience, 13 + dex.mod, 10 + dex.mod))) + stat.acBonus',
-    description: 'Your AC with no armor worn. Wearing armor replaces the 10 + DEX base — see your equipment list.',
+      'if(stat.wearingArmor, stat.armorAC, if(stat.unarmoredDefense, 10 + dex.mod + con.mod, if(stat.unarmoredDefenseWis, 10 + dex.mod + wis.mod, if(stat.draconicResilience, 13 + dex.mod, 10 + dex.mod)))) + stat.shieldBonus + stat.acBonus',
+    description: 'Includes whatever armor and shield you have equipped.',
   },
   {
     id: 'initiative',
@@ -350,6 +352,9 @@ export const dnd5e: Ruleset = {
     unarmoredDefense: 0,
     unarmoredDefenseWis: 0,
     draconicResilience: 0,
+    armorAC: 0,
+    shieldBonus: 0,
+    wearingArmor: 0,
   },
   spellcastingFormulas: {
     saveDC: '8 + prof + castingMod',
@@ -362,6 +367,20 @@ export const dnd5e: Ruleset = {
     { id: 'free', label: 'No action' },
     { id: 'passive', label: 'Always on' },
   ],
+  armor: {
+    collection: 'equipment',
+    tag: 'armor',
+    shieldTag: 'shield',
+    ability: 'dex',
+    strengthAbility: 'str',
+    proficiencyCategory: 'armor',
+    blanketProficiencies: {
+      light: ['Light armor', 'All armor', 'Light armor (nonmetal)'],
+      medium: ['Medium armor', 'All armor', 'Medium armor (nonmetal)'],
+      heavy: ['Heavy armor', 'All armor'],
+      shield: ['Shields', 'Shields (nonmetal)'],
+    },
+  },
   weapons: {
     collection: 'equipment',
     tag: 'weapon',

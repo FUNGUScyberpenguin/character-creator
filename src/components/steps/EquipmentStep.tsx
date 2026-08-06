@@ -6,16 +6,27 @@ import { useStore } from '../../state/store'
 import { Callout } from '../common'
 
 /**
- * Equipment is deliberately a list rather than a simulation: the wizard shows
- * what your choices granted, and lets you add anything else. Tracking encumbrance
- * and equipped-armour AC is the kind of bookkeeping a character sheet is for.
+ * Your pack, and what you are actually wearing out of it.
+ *
+ * Armour and shields carry an equip toggle because carrying a breastplate and
+ * wearing one are different things — only the second changes your Armor Class.
+ * Everything else is a list; encumbrance is left to the table.
  */
 export function EquipmentStep({ step }: { step: Extract<Step, { kind: 'equipment' }> }) {
-  const { ruleset, character, derived, setInventory } = useStore()
+  const { ruleset, character, derived, setInventory, toggleEquipped } = useStore()
   const [query, setQuery] = useState('')
   const [category, setCategory] = useState('all')
 
   const collection = findCollection(ruleset, step.collection)
+  const armorTag = ruleset.armor?.tag
+  // Only things that change a number are worth an equip toggle; a bedroll is
+  // either in your pack or it is not.
+  const isWearable = (name: string) =>
+    !!armorTag &&
+    (collection?.entries.some(
+      (entry) => entry.name.toLowerCase() === name.toLowerCase() && (entry.tags ?? []).includes(armorTag),
+    ) ??
+      false)
   const granted = useMemo(() => {
     const fromChoices = new Set<string>()
     for (const { effect } of derived.resolution.effects) {
@@ -74,9 +85,17 @@ export function EquipmentStep({ step }: { step: Extract<Step, { kind: 'equipment
                 (candidate) => candidate.name.toLowerCase() === item.name.toLowerCase(),
               )
               const isGranted = granted.has(item.name.toLowerCase())
+              const wearable = isWearable(item.name)
+              const worn = character.equipped.some((value) => value.toLowerCase() === item.name.toLowerCase())
               return (
-                <li key={item.name} className={`inventory-row${isGranted ? ' is-granted' : ''}`}>
+                <li key={item.name} className={`inventory-row${isGranted ? ' is-granted' : ''}${worn ? ' is-worn' : ''}`}>
                   <span className="inventory-name">{item.name}</span>
+                  {wearable && (
+                    <label className="inventory-worn">
+                      <input type="checkbox" checked={worn} onChange={() => toggleEquipped(item.name)} />
+                      <span>Worn</span>
+                    </label>
+                  )}
                   {manualIndex >= 0 ? (
                     <span className="inventory-controls">
                       <button type="button" onClick={() => setQuantity(manualIndex, character.inventory[manualIndex]!.quantity - 1)}>
@@ -133,10 +152,36 @@ export function EquipmentStep({ step }: { step: Extract<Step, { kind: 'equipment
         <AddCustom onAdd={addItem} />
       </section>
 
-      <Callout tone="info">
-        Armour is listed here rather than folded into your Armor Class, because what you are wearing changes from session
-        to session. The AC shown on your sheet is your unarmoured value.
-      </Callout>
+      {derived.armor.worn || derived.armor.shields.length > 0 ? (
+        <Callout tone={derived.armor.warnings.length ? 'warn' : 'good'}>
+          <p>
+            <strong>
+              Armor Class {derived.derived.find((stat) => stat.id === 'ac')?.display}
+            </strong>{' '}
+            —{' '}
+            {[
+              derived.armor.worn
+                ? `${derived.armor.worn.name} (${derived.armor.worn.base}${
+                    derived.armor.worn.dexApplied ? ` + ${derived.armor.worn.dexApplied} DEX` : ''
+                  }${derived.armor.worn.dexMax === 0 ? ', no DEX bonus' : ''})`
+                : 'no armor',
+              ...derived.armor.shields.map((shield) => `${shield.name} (+${shield.bonus})`),
+            ].join(', ')}
+          </p>
+          {derived.armor.warnings.length > 0 && (
+            <ul className="issue-list">
+              {derived.armor.warnings.map((warning) => (
+                <li key={warning}>{warning}</li>
+              ))}
+            </ul>
+          )}
+        </Callout>
+      ) : (
+        <Callout tone="info">
+          Tick <strong>Worn</strong> on a piece of armor or a shield and it will be counted in your Armor Class. Carrying
+          it in your pack does nothing, which is the point.
+        </Callout>
+      )}
     </div>
   )
 }

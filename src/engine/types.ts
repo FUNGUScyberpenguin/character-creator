@@ -330,6 +330,41 @@ export interface Ruleset {
    * lists equipment, which is what a system with no weapon attacks wants.
    */
   weapons?: WeaponRules
+  /** How worn armour contributes to defence. Omit for systems without it. */
+  armor?: ArmorRules
+}
+
+/**
+ * How worn armour is read.
+ *
+ * The engine works out the armour's contribution and writes it into the stat
+ * bag as `stat.armorAC`, `stat.shieldBonus` and `stat.wearingArmor`. The
+ * ruleset's own Armor Class formula decides what to do with those, so a system
+ * where armour subtracts from a target number expresses that in the formula
+ * rather than needing different code.
+ */
+export interface ArmorRules {
+  collection: string
+  /** Tag marking a wearable entry. */
+  tag: string
+  /** Tag marking a shield, which stacks on top of body armour. */
+  shieldTag?: string
+  /** Ability whose modifier armour adds, subject to the armour's cap. */
+  ability?: string
+  /** Meta keys holding the structured rule. */
+  baseKey?: string
+  dexMaxKey?: string
+  bonusKey?: string
+  /** Meta key holding a minimum score in `strengthAbility` to wear it freely. */
+  strengthKey?: string
+  strengthAbility?: string
+  /** Proficiency category checked; wearing armour you lack is flagged. */
+  proficiencyCategory?: string
+  /**
+   * Proficiency values covering a whole tag, e.g. `{ heavy: 'Heavy armor' }`.
+   * A blanket "All armor" value can be listed under every tag.
+   */
+  blanketProficiencies?: Record<string, string[]>
 }
 
 /**

@@ -26,6 +26,11 @@ export interface CharacterState {
   selections: Record<string, string[]>
   /** Items typed in by hand, on top of anything granted by a choice. */
   inventory: InventoryItem[]
+  /**
+   * Names of items actually being worn or held. Carrying a breastplate in your
+   * pack should not change your Armor Class, so this is tracked separately.
+   */
+  equipped: string[]
   /** Spellcasting source id to chosen spell ids. */
   spells: Record<string, string[]>
   /**
@@ -94,6 +99,7 @@ export function createCharacter(ruleset: Ruleset): CharacterState {
     rolledScores: [],
     selections: {},
     inventory: [],
+    equipped: [],
     spells: {},
     overrides: {},
     customFeatures: [],
@@ -162,6 +168,7 @@ export function normalizeCharacter(input: unknown, ruleset: Ruleset): CharacterS
 
   return {
     ...base,
+    equipped: Array.isArray(raw.equipped) ? raw.equipped.filter((v): v is string => typeof v === 'string') : [],
     overrides,
     customFeatures,
     customProficiencies,

@@ -19,12 +19,61 @@ const weapon = (
   meta: { Cost: cost, Damage: damage, Weight: weight, Properties: properties || '—' },
 })
 
-const armor = (id: string, name: string, cost: string, ac: string, weight: string, note: string, category: string): Entry => ({
+/**
+ * Armour carries its rule in structured form as well as prose. The display
+ * string is for humans; `acBase`, `acDexMax` and `strengthMin` are what the
+ * engine reads when working out your Armor Class.
+ *
+ * `acDexMax` is omitted for light armour, which adds the whole Dexterity
+ * modifier, and is 0 for heavy armour, which adds none of it.
+ */
+const armor = (
+  id: string,
+  name: string,
+  cost: string,
+  weight: string,
+  category: 'light' | 'medium' | 'heavy',
+  rule: { acBase: number; acDexMax?: number; strengthMin?: number; stealthDisadvantage?: boolean },
+): Entry => {
+  const display =
+    rule.acDexMax === 0
+      ? String(rule.acBase)
+      : rule.acDexMax === undefined
+        ? `${rule.acBase} + DEX`
+        : `${rule.acBase} + DEX (max ${rule.acDexMax})`
+
+  const notes = [
+    rule.strengthMin ? `Requires STR ${rule.strengthMin}` : '',
+    rule.stealthDisadvantage ? 'Disadvantage on Stealth' : '',
+  ]
+    .filter(Boolean)
+    .join(', ')
+
+  return {
+    id,
+    name,
+    tags: ['armor', category],
+    summary: `AC ${display}${notes ? ` · ${notes}` : ''}`,
+    meta: {
+      Cost: cost,
+      AC: display,
+      Weight: weight,
+      Notes: notes || '—',
+      acBase: rule.acBase,
+      ...(rule.acDexMax === undefined ? {} : { acDexMax: rule.acDexMax }),
+      ...(rule.strengthMin ? { strengthMin: rule.strengthMin } : {}),
+      ...(rule.stealthDisadvantage ? { stealthDisadvantage: 1 } : {}),
+    },
+  }
+}
+
+/** A shield stacks a flat bonus on top of whatever else you are wearing. */
+const shield = (id: string, name: string, cost: string, weight: string, bonus: number): Entry => ({
   id,
   name,
-  tags: ['armor', category],
-  summary: `AC ${ac}${note ? ` · ${note}` : ''}`,
-  meta: { Cost: cost, AC: ac, Weight: weight, Notes: note || '—' },
+  tags: ['armor', 'shield'],
+  summary: `AC +${bonus}`,
+  meta: { Cost: cost, AC: `+${bonus}`, Weight: weight, Notes: '—', acBonus: bonus },
 })
 
 const gear = (id: string, name: string, cost: string, weight: string, summary = ''): Entry => ({
@@ -90,19 +139,19 @@ const entries: Entry[] = [
   weapon('net', 'Net', '1 gp', '—', '3 lb.', 'Special, thrown (5/15)', 'martial', 'ranged'),
 
   // --- Armour ---
-  armor('padded', 'Padded armor', '5 gp', '11 + DEX', '8 lb.', 'Disadvantage on Stealth', 'light'),
-  armor('leather', 'Leather armor', '10 gp', '11 + DEX', '10 lb.', '', 'light'),
-  armor('studded-leather', 'Studded leather', '45 gp', '12 + DEX', '13 lb.', '', 'light'),
-  armor('hide', 'Hide armor', '10 gp', '12 + DEX (max 2)', '12 lb.', '', 'medium'),
-  armor('chain-shirt', 'Chain shirt', '50 gp', '13 + DEX (max 2)', '20 lb.', '', 'medium'),
-  armor('scale-mail', 'Scale mail', '50 gp', '14 + DEX (max 2)', '45 lb.', 'Disadvantage on Stealth', 'medium'),
-  armor('breastplate', 'Breastplate', '400 gp', '14 + DEX (max 2)', '20 lb.', '', 'medium'),
-  armor('half-plate', 'Half plate', '750 gp', '15 + DEX (max 2)', '40 lb.', 'Disadvantage on Stealth', 'medium'),
-  armor('ring-mail', 'Ring mail', '30 gp', '14', '40 lb.', 'Disadvantage on Stealth', 'heavy'),
-  armor('chain-mail', 'Chain mail', '75 gp', '16', '55 lb.', 'Requires STR 13, disadvantage on Stealth', 'heavy'),
-  armor('splint', 'Splint armor', '200 gp', '17', '60 lb.', 'Requires STR 15, disadvantage on Stealth', 'heavy'),
-  armor('plate', 'Plate armor', '1,500 gp', '18', '65 lb.', 'Requires STR 15, disadvantage on Stealth', 'heavy'),
-  armor('shield', 'Shield', '10 gp', '+2', '6 lb.', '', 'shield'),
+  armor('padded', 'Padded armor', '5 gp', '8 lb.', 'light', { acBase: 11, stealthDisadvantage: true }),
+  armor('leather', 'Leather armor', '10 gp', '10 lb.', 'light', { acBase: 11 }),
+  armor('studded-leather', 'Studded leather', '45 gp', '13 lb.', 'light', { acBase: 12 }),
+  armor('hide', 'Hide armor', '10 gp', '12 lb.', 'medium', { acBase: 12, acDexMax: 2 }),
+  armor('chain-shirt', 'Chain shirt', '50 gp', '20 lb.', 'medium', { acBase: 13, acDexMax: 2 }),
+  armor('scale-mail', 'Scale mail', '50 gp', '45 lb.', 'medium', { acBase: 14, acDexMax: 2, stealthDisadvantage: true }),
+  armor('breastplate', 'Breastplate', '400 gp', '20 lb.', 'medium', { acBase: 14, acDexMax: 2 }),
+  armor('half-plate', 'Half plate', '750 gp', '40 lb.', 'medium', { acBase: 15, acDexMax: 2, stealthDisadvantage: true }),
+  armor('ring-mail', 'Ring mail', '30 gp', '40 lb.', 'heavy', { acBase: 14, acDexMax: 0, stealthDisadvantage: true }),
+  armor('chain-mail', 'Chain mail', '75 gp', '55 lb.', 'heavy', { acBase: 16, acDexMax: 0, strengthMin: 13, stealthDisadvantage: true }),
+  armor('splint', 'Splint armor', '200 gp', '60 lb.', 'heavy', { acBase: 17, acDexMax: 0, strengthMin: 15, stealthDisadvantage: true }),
+  armor('plate', 'Plate armor', '1,500 gp', '65 lb.', 'heavy', { acBase: 18, acDexMax: 0, strengthMin: 15, stealthDisadvantage: true }),
+  shield('shield', 'Shield', '10 gp', '6 lb.', 2),
 
   // --- Packs ---
   pack('burglars-pack', "Burglar's pack", '16 gp', 'Backpack, ball bearings, string, bell, candles, crowbar, hammer, pitons, hooded lantern, oil, rations, tinderbox, waterskin, rope'),
