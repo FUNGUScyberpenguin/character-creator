@@ -6,6 +6,7 @@ import { equipment } from './equipment'
 import { fightingStyles, invocations, metamagic, pactBoons, subclasses } from './features'
 import { races, subraces } from './races'
 import { spellCollection } from './spells'
+import { applyActionTimings } from './timings'
 
 /**
  * Spell slot progressions. Each row is a character level (row 0 is level 1) and
@@ -131,6 +132,23 @@ const derived: DerivedStat[] = [
   },
 ]
 
+const collections = [
+  races,
+  subraces,
+  classes,
+  backgrounds,
+  subclasses,
+  fightingStyles,
+  metamagic,
+  invocations,
+  pactBoons,
+  equipment,
+  spellCollection,
+]
+
+// Stamp "when do I use this" onto every feature that has an answer.
+applyActionTimings(collections)
+
 const steps: Step[] = [
   {
     id: 'intro',
@@ -200,19 +218,90 @@ const steps: Step[] = [
     id: 'identity',
     kind: 'identity',
     title: 'Who are they?',
-    subtitle: 'The part that makes the numbers matter. All of it is optional except the name.',
+    subtitle:
+      'The part everyone remembers. These are prompts, not a form — answer the two or three that spark something and leave the rest blank.',
     fields: [
-      { id: 'alignment', label: 'Alignment', kind: 'select', options: ['Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'True Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil'] },
       { id: 'pronouns', label: 'Pronouns', kind: 'text', placeholder: 'they/them' },
+      {
+        id: 'alignment',
+        label: 'Alignment',
+        kind: 'select',
+        hint: 'A rough compass heading. Plenty of tables ignore it entirely.',
+        options: ['Lawful Good', 'Neutral Good', 'Chaotic Good', 'Lawful Neutral', 'True Neutral', 'Chaotic Neutral', 'Lawful Evil', 'Neutral Evil', 'Chaotic Evil'],
+      },
       { id: 'age', label: 'Age', kind: 'text', placeholder: '27' },
-      { id: 'height', label: 'Height', kind: 'text', placeholder: "5'9\"" },
-      { id: 'weight', label: 'Weight', kind: 'text', placeholder: '160 lb.' },
-      { id: 'appearance', label: 'Appearance', kind: 'textarea', placeholder: 'What someone notices first.' },
-      { id: 'traits', label: 'Personality traits', kind: 'textarea', placeholder: 'How do they behave when things are calm?' },
-      { id: 'ideals', label: 'Ideals', kind: 'textarea', placeholder: 'What do they believe is worth doing?' },
-      { id: 'bonds', label: 'Bonds', kind: 'textarea', placeholder: 'Who or what would they cross the map for?' },
-      { id: 'flaws', label: 'Flaws', kind: 'textarea', placeholder: 'What reliably gets them into trouble?' },
-      { id: 'backstory', label: 'Backstory', kind: 'textarea', placeholder: 'A paragraph is plenty.' },
+      {
+        id: 'appearance',
+        label: 'What does someone notice first?',
+        kind: 'textarea',
+        hint: 'One physical detail beats a full description. Give the table something to picture.',
+        suggestions: [
+          'A soldier’s posture they have never managed to drop.',
+          'Ink stains on every finger, no matter how recently they washed.',
+          'A laugh far too loud for their size.',
+          'They never quite meet your eye, and they always know where the exits are.',
+        ],
+      },
+      {
+        id: 'motivation',
+        label: 'Why are they out here adventuring?',
+        kind: 'textarea',
+        hint: 'The most useful single line in a backstory. Your character needs a reason to leave home and keep going.',
+        suggestions: [
+          'They owe someone dangerous a great deal of money.',
+          'They are looking for a person who walked out ten years ago.',
+          'They were thrown out and intend to come back rich enough to matter.',
+          'Someone has to do it, and everyone else said no.',
+        ],
+      },
+      {
+        id: 'connection',
+        label: 'Name one person who is still alive and matters to them',
+        kind: 'textarea',
+        hint: 'Living people give your DM someone to write into the story. A dead family is a closed door; a living sister is a hook.',
+        suggestions: [
+          'Their old mentor, who still writes and still disapproves.',
+          'A younger sibling they send money to every month.',
+          'The friend they left behind, who does not know why.',
+          'A creditor who is patient, for now.',
+        ],
+      },
+      {
+        id: 'loves',
+        label: 'Something they love',
+        kind: 'textarea',
+        hint: 'Not a tragedy — a pleasure. A food, a song, a habit. This is what makes a character feel like a person at the table.',
+        suggestions: [
+          'Cheap pastry, eaten walking, ideally stolen.',
+          'Arguing about things that do not matter.',
+          'Being the first one awake in a quiet camp.',
+          'Any dog. Every dog.',
+        ],
+      },
+      {
+        id: 'flaws',
+        label: 'What reliably gets them into trouble?',
+        kind: 'textarea',
+        hint: 'Give the DM permission to complicate your life. A flaw you actually play is worth more than a heroic backstory.',
+        suggestions: [
+          'They cannot walk away from a bet.',
+          'They assume they are the smartest person in the room, and say so.',
+          'They lie first and think about it afterwards.',
+          'They would rather be liked than be right.',
+        ],
+      },
+      {
+        id: 'ideals',
+        label: 'What do they believe is worth doing?',
+        kind: 'textarea',
+        hint: 'Optional. Useful when a decision splits the party.',
+      },
+      {
+        id: 'backstory',
+        label: 'Anything else',
+        kind: 'textarea',
+        hint: 'A paragraph is plenty. Your DM will read it — keep it short enough that they enjoy doing so.',
+      },
     ],
   },
   {
@@ -242,7 +331,7 @@ export const dnd5e: Ruleset = {
   skills,
   proficiencyCategories,
   abilityMethods,
-  collections: [races, subraces, classes, backgrounds, subclasses, fightingStyles, metamagic, invocations, pactBoons, equipment, spellCollection],
+  collections,
   steps,
   derived,
   spellSlotTables: {
@@ -265,5 +354,29 @@ export const dnd5e: Ruleset = {
   spellcastingFormulas: {
     saveDC: '8 + prof + castingMod',
     attackBonus: 'prof + castingMod',
+  },
+  actionTimings: [
+    { id: 'action', label: 'Action' },
+    { id: 'bonus', label: 'Bonus action' },
+    { id: 'reaction', label: 'Reaction' },
+    { id: 'free', label: 'No action' },
+    { id: 'passive', label: 'Always on' },
+  ],
+  weapons: {
+    collection: 'equipment',
+    tag: 'weapon',
+    proficiencyCategory: 'weapon',
+    abilityRules: [
+      // Finesse lets you use whichever of Strength or Dexterity is better.
+      { property: 'Finesse', abilities: ['str', 'dex'] },
+      { tag: 'ranged', abilities: ['dex'] },
+      { abilities: ['str'] },
+    ],
+    blanketProficiencies: {
+      simple: 'Simple weapons',
+      martial: 'Martial weapons',
+    },
+    attackFormula: 'weaponMod + if(proficient, prof, 0)',
+    damageBonusFormula: 'weaponMod',
   },
 }

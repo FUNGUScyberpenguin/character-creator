@@ -11,8 +11,14 @@ first character, and the DM helping five of them do it at once.
   saved to local storage and never leaves your machine.
 - **Nothing is locked in.** Jump between steps freely; change your class at
   level 12 and every dependent choice re-resolves.
-- **Real output.** A two-page PDF sheet, plus a JSON file you can reload later
-  or hand to someone else.
+- **Real output.** A printable PDF sheet — including an "on your turn" section
+  with your attacks and action economy — plus a JSON file you can reload later.
+  Ink-friendly and ruled-for-notes versions are a checkbox.
+- **Built from what players actually complain about.** Guided class picking for
+  choice paralysis, backstory prompts instead of blank boxes, and an escape
+  hatch for anything the rules-as-data cannot express.
+- **Accessible by choice.** Text scaling, a high-legibility typeface, and a
+  high-contrast mode, all remembered between sessions.
 - **Not hard-coded to one game.** The wizard is a generic engine driven by a
   ruleset data file. D&D 5e (SRD 5.1) ships in the box; other systems are a
   data module away.

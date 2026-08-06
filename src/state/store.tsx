@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 
-import type { CharacterState, InventoryItem } from '../engine/character'
+import type { CharacterState, CustomFeature, InventoryItem } from '../engine/character'
 import { createCharacter, normalizeCharacter } from '../engine/character'
 import type { DerivedCharacter } from '../engine/derive'
 import { deriveCharacter } from '../engine/derive'
@@ -31,9 +31,28 @@ interface StoreValue {
   setAbilityScore: (ability: string, score: number) => void
   setInventory: (items: InventoryItem[]) => void
   toggleSpell: (sourceId: string, spellId: string) => void
+  setOverride: (statId: string, override: { value: number; note?: string } | null) => void
+  setCustomFeatures: (features: CustomFeature[]) => void
+  setCustomProficiencies: (values: { category: string; value: string }[]) => void
   reset: () => void
   loadFrom: (raw: unknown) => void
+  settings: Settings
+  updateSettings: (patch: Partial<Settings>) => void
 }
+
+/** Presentation preferences. Kept apart from the character so they persist across characters. */
+export interface Settings {
+  /** Scales the whole interface, for low vision or a small screen. */
+  textScale: number
+  /** Swaps to a high-legibility font stack with looser spacing. */
+  readableFont: boolean
+  /** Removes decorative colour, keeping contrast high. */
+  highContrast: boolean
+}
+
+const SETTINGS_KEY = 'character-creator:settings:v1'
+
+const DEFAULT_SETTINGS: Settings = { textScale: 1, readableFont: false, highContrast: false }
 
 const StoreContext = createContext<StoreValue | null>(null)
 
@@ -55,6 +74,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const ruleset = defaultRuleset
   const [character, setCharacter] = useState<CharacterState>(() => loadInitial(ruleset))
   const [stepIndex, setStepIndex] = useState(0)
+  const [settings, setSettings] = useState<Settings>(() => {
+    if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS
+    try {
+      return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem(SETTINGS_KEY) ?? '{}') }
+    } catch {
+      return DEFAULT_SETTINGS
+    }
+  })
+
+  // Preferences drive CSS custom properties and data attributes on <html>, so
+  // every component picks them up without threading props through the tree.
+  useEffect(() => {
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    } catch {
+      /* storage unavailable */
+    }
+    const root = document.documentElement
+    root.style.setProperty('--text-scale', String(settings.textScale))
+    root.dataset['readableFont'] = settings.readableFont ? 'on' : 'off'
+    root.dataset['contrast'] = settings.highContrast ? 'high' : 'normal'
+  }, [settings])
 
   useEffect(() => {
     try {
@@ -146,6 +187,27 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
+  const setOverride = useCallback((statId: string, override: { value: number; note?: string } | null) => {
+    setCharacter((current) => {
+      const overrides = { ...current.overrides }
+      if (override === null) delete overrides[statId]
+      else overrides[statId] = override
+      return { ...current, overrides, updatedAt: new Date().toISOString() }
+    })
+  }, [])
+
+  const setCustomFeatures = useCallback((features: CustomFeature[]) => {
+    setCharacter((current) => ({ ...current, customFeatures: features, updatedAt: new Date().toISOString() }))
+  }, [])
+
+  const setCustomProficiencies = useCallback((values: { category: string; value: string }[]) => {
+    setCharacter((current) => ({ ...current, customProficiencies: values, updatedAt: new Date().toISOString() }))
+  }, [])
+
+  const updateSettings = useCallback((patch: Partial<Settings>) => {
+    setSettings((current) => ({ ...current, ...patch }))
+  }, [])
+
   const reset = useCallback(() => {
     setCharacter(createCharacter(ruleset))
     setStepIndex(0)
@@ -194,8 +256,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setAbilityScore,
     setInventory,
     toggleSpell,
+    setOverride,
+    setCustomFeatures,
+    setCustomProficiencies,
     reset,
     loadFrom,
+    settings,
+    updateSettings,
   }
 
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>

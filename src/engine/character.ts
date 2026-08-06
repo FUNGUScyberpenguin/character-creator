@@ -28,8 +28,26 @@ export interface CharacterState {
   inventory: InventoryItem[]
   /** Spellcasting source id to chosen spell ids. */
   spells: Record<string, string[]>
+  /**
+   * Escape hatch: derived stat id to a value that replaces whatever the rules
+   * computed, with the player's reason. The sheet marks these so nobody
+   * mistakes a house rule for a bug.
+   */
+  overrides: Record<string, { value: number; note?: string }>
+  /** Escape hatch: anything the ruleset has no way to express. */
+  customFeatures: CustomFeature[]
+  /** Escape hatch: proficiencies the ruleset never offered, by category. */
+  customProficiencies: { category: string; value: string }[]
   notes: string
   updatedAt: string
+}
+
+export interface CustomFeature {
+  name: string
+  description: string
+  /** Optional timing, so homebrew can appear in the "on your turn" section too. */
+  action?: string
+  uses?: string
 }
 
 export interface InventoryItem {
@@ -77,6 +95,9 @@ export function createCharacter(ruleset: Ruleset): CharacterState {
     selections: {},
     inventory: [],
     spells: {},
+    overrides: {},
+    customFeatures: [],
+    customProficiencies: [],
     notes: '',
     updatedAt: new Date().toISOString(),
   }
@@ -114,8 +135,36 @@ export function normalizeCharacter(input: unknown, ruleset: Ruleset): CharacterS
         .map((item) => ({ name: item.name, quantity: Number(item.quantity) || 1 }))
     : []
 
+  const overrides: Record<string, { value: number; note?: string }> = {}
+  for (const [key, value] of Object.entries(raw.overrides ?? {})) {
+    if (value && typeof value === 'object' && Number.isFinite(Number(value.value))) {
+      overrides[key] = { value: Number(value.value), note: typeof value.note === 'string' ? value.note : undefined }
+    }
+  }
+
+  const customFeatures = Array.isArray(raw.customFeatures)
+    ? raw.customFeatures
+        .filter((f): f is CustomFeature => !!f && typeof f.name === 'string')
+        .map((f) => ({
+          name: f.name,
+          description: typeof f.description === 'string' ? f.description : '',
+          action: typeof f.action === 'string' ? f.action : undefined,
+          uses: typeof f.uses === 'string' ? f.uses : undefined,
+        }))
+    : []
+
+  const customProficiencies = Array.isArray(raw.customProficiencies)
+    ? raw.customProficiencies.filter(
+        (p): p is { category: string; value: string } =>
+          !!p && typeof p.category === 'string' && typeof p.value === 'string',
+      )
+    : []
+
   return {
     ...base,
+    overrides,
+    customFeatures,
+    customProficiencies,
     id: typeof raw.id === 'string' ? raw.id : base.id,
     rulesetId: ruleset.id,
     name: typeof raw.name === 'string' ? raw.name : '',

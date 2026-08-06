@@ -23,6 +23,8 @@ interface OptionCardProps {
   name: string
   summary?: string
   description?: string
+  /** Plain-language "what your turns look like", shown as a pull-quote. */
+  atTheTable?: string
   icon?: string
   meta?: Record<string, string | number>
   selected: boolean
@@ -41,6 +43,7 @@ export function OptionCard({
   name,
   summary,
   description,
+  atTheTable,
   icon,
   meta,
   selected,
@@ -65,6 +68,12 @@ export function OptionCard({
             {count && count > 1 ? <span className="card-count">x{count}</span> : null}
           </span>
           {summary && <span className="card-summary">{summary}</span>}
+          {atTheTable && (
+            <span className="card-table">
+              <span className="card-table-label">At the table</span>
+              {atTheTable}
+            </span>
+          )}
           <MetaChips meta={meta} />
         </span>
         <span className="card-check" aria-hidden="true">

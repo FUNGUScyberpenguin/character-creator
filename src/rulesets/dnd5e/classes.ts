@@ -11,11 +11,12 @@ import { allSkillIds } from './basics'
  * read `stat.spellsKnown` without knowing any table by heart.
  */
 
-const feature = (name: string, description: string, uses?: string): Effect => ({
+const feature = (name: string, description: string, uses?: string, action?: string): Effect => ({
   type: 'feature',
   name,
   description,
   ...(uses ? { uses } : {}),
+  ...(action ? { action } : {}),
 })
 
 const save = (ability: string): Effect => ({ type: 'proficiency', category: 'save', value: ability })
@@ -105,7 +106,9 @@ const entries: Entry[] = [
     summary: 'A furious front-line brawler who gets tougher the angrier they get.',
     description:
       'Barbarians channel raw fury into devastating attacks and a stubborn refusal to fall. Simple to play, enormously satisfying to swing.',
-    meta: { 'Hit Die': 'd12', 'Primary': 'Strength', 'Saves': 'STR & CON' },
+    meta: { 'Hit Die': 'd12', 'Primary': 'Strength', 'Saves': 'STR & CON' , 'Complexity': 'Simple' },
+    tags: ["role-melee", "complexity-low"],
+    atTheTable: 'Rage as a bonus action, then hit things. Later you hit them twice. Very little to track.',
     effects: [
       setStat('hitDie', 12),
       save('str'),
@@ -185,7 +188,9 @@ const entries: Entry[] = [
     summary: 'An inspiring, magically gifted jack-of-all-trades who makes the whole party better.',
     description:
       'Bards weave magic through music and words. They cast, they talk their way past trouble, and they hand out dice that turn a failure into a success.',
-    meta: { 'Hit Die': 'd8', 'Primary': 'Charisma', 'Saves': 'DEX & CHA' },
+    meta: { 'Hit Die': 'd8', 'Primary': 'Charisma', 'Saves': 'DEX & CHA' , 'Complexity': 'Complex' },
+    tags: ["role-support", "role-social", "role-magic", "complexity-high"],
+    atTheTable: 'Hand out dice that turn allies\u2019 failures into successes, cast a broad spell list, and talk your way past most problems.',
     effects: [
       setStat('hitDie', 8),
       save('dex'),
@@ -263,7 +268,9 @@ const entries: Entry[] = [
     summary: 'A divine spellcaster who heals, protects, and can hold the line in armour.',
     description:
       'Clerics serve a deity and channel its power. They are the classic healer, but a well-built cleric is also a formidable combatant.',
-    meta: { 'Hit Die': 'd8', 'Primary': 'Wisdom', 'Saves': 'WIS & CHA' },
+    meta: { 'Hit Die': 'd8', 'Primary': 'Wisdom', 'Saves': 'WIS & CHA' , 'Complexity': 'Moderate' },
+    tags: ["role-support", "role-magic", "role-melee", "complexity-medium"],
+    atTheTable: 'Heal and buff, drop a big spell when it counts, and still hold a spot in the front line in armour.',
     effects: [
       setStat('hitDie', 8),
       save('wis'),
@@ -331,7 +338,9 @@ const entries: Entry[] = [
     summary: 'A nature priest who shapeshifts into beasts and commands the elements.',
     description:
       'Druids draw on the power of nature itself. Wild Shape gives them a flexibility no other class has: scout as a rat, tank as a bear.',
-    meta: { 'Hit Die': 'd8', 'Primary': 'Wisdom', 'Saves': 'INT & WIS' },
+    meta: { 'Hit Die': 'd8', 'Primary': 'Wisdom', 'Saves': 'INT & WIS' , 'Complexity': 'Complex' },
+    tags: ["role-magic", "role-support", "complexity-high"],
+    atTheTable: 'Turn into a bear to tank, or stay back and reshape the battlefield with terrain and weather.',
     effects: [
       setStat('hitDie', 8),
       save('int'),
@@ -397,7 +406,9 @@ const entries: Entry[] = [
     summary: 'The definitive weapon master — more attacks, more armour, more staying power.',
     description:
       'Fighters are the most flexible martial class and the friendliest to newcomers: pick a weapon, pick a fighting style, and hit things very reliably.',
-    meta: { 'Hit Die': 'd10', 'Primary': 'Strength or Dexterity', 'Saves': 'STR & CON' },
+    meta: { 'Hit Die': 'd10', 'Primary': 'Strength or Dexterity', 'Saves': 'STR & CON' , 'Complexity': 'Simple' },
+    tags: ["role-melee", "role-ranged", "complexity-low"],
+    atTheTable: 'Attack, attack again, and use Second Wind when you get low. The friendliest first character in the game.',
     effects: [
       setStat('hitDie', 10),
       save('str'),
@@ -463,7 +474,9 @@ const entries: Entry[] = [
     summary: 'A fast, unarmoured martial artist who spends ki on extraordinary feats.',
     description:
       'Monks turn their body into the weapon. They move faster than anyone, strike several times a round, and pick up striking supernatural tricks.',
-    meta: { 'Hit Die': 'd8', 'Primary': 'Dexterity & Wisdom', 'Saves': 'STR & DEX' },
+    meta: { 'Hit Die': 'd8', 'Primary': 'Dexterity & Wisdom', 'Saves': 'STR & DEX' , 'Complexity': 'Moderate' },
+    tags: ["role-melee", "complexity-medium"],
+    atTheTable: 'Move further than anyone, strike three or four times a round, and spend ki to stun what you hit.',
     effects: [
       setStat('hitDie', 8),
       save('str'),
@@ -540,7 +553,9 @@ const entries: Entry[] = [
     summary: 'A holy warrior bound by an oath, with heavy armour and burst damage.',
     description:
       'Paladins combine martial strength with divine magic and an oath they must keep. Divine Smite makes them terrifying on a critical hit.',
-    meta: { 'Hit Die': 'd10', 'Primary': 'Strength & Charisma', 'Saves': 'WIS & CHA' },
+    meta: { 'Hit Die': 'd10', 'Primary': 'Strength & Charisma', 'Saves': 'WIS & CHA' , 'Complexity': 'Moderate' },
+    tags: ["role-melee", "role-support", "complexity-medium"],
+    atTheTable: 'Hold the line in heavy armour, then burn a spell slot to turn one hit into an enormous one.',
     effects: [
       setStat('hitDie', 10),
       save('wis'),
@@ -615,7 +630,9 @@ const entries: Entry[] = [
     summary: 'A tracker and skirmisher who knows the wild and fights with bow or blades.',
     description:
       'Rangers are hunters at the edge of civilisation, mixing martial skill with a little nature magic and unmatched wilderness competence.',
-    meta: { 'Hit Die': 'd10', 'Primary': 'Dexterity & Wisdom', 'Saves': 'STR & DEX' },
+    meta: { 'Hit Die': 'd10', 'Primary': 'Dexterity & Wisdom', 'Saves': 'STR & DEX' , 'Complexity': 'Moderate' },
+    tags: ["role-ranged", "role-melee", "complexity-medium"],
+    atTheTable: 'Mark a target and whittle it down with a bow or two blades, while never getting the party lost.',
     effects: [
       setStat('hitDie', 10),
       save('str'),
@@ -702,7 +719,9 @@ const entries: Entry[] = [
     summary: 'A precise, evasive specialist with huge burst damage and the best skills in the game.',
     description:
       'Rogues get things done quietly: pick the lock, spot the trap, and put a dagger exactly where it hurts. Sneak Attack scales all the way to 20th level.',
-    meta: { 'Hit Die': 'd8', 'Primary': 'Dexterity', 'Saves': 'DEX & INT' },
+    meta: { 'Hit Die': 'd8', 'Primary': 'Dexterity', 'Saves': 'DEX & INT' , 'Complexity': 'Moderate' },
+    tags: ["role-social", "role-ranged", "role-melee", "complexity-medium"],
+    atTheTable: 'Get advantage or stand next to an ally, land one big Sneak Attack, then disengage and vanish as a bonus action.',
     effects: [
       setStat('hitDie', 8),
       save('dex'),
@@ -763,7 +782,9 @@ const entries: Entry[] = [
     summary: 'Innate magic in the blood, bent on the fly with Metamagic.',
     description:
       'Sorcerers know fewer spells than a wizard but can twist them mid-cast — a twinned, quickened, or subtle spell at the right moment wins fights.',
-    meta: { 'Hit Die': 'd6', 'Primary': 'Charisma', 'Saves': 'CON & CHA' },
+    meta: { 'Hit Die': 'd6', 'Primary': 'Charisma', 'Saves': 'CON & CHA' , 'Complexity': 'Complex' },
+    tags: ["role-magic", "complexity-high"],
+    atTheTable: 'Fewer spells than a wizard, but you bend them mid-cast \u2014 twinned, quickened, or silent.',
     effects: [
       setStat('hitDie', 6),
       save('con'),
@@ -832,7 +853,9 @@ const entries: Entry[] = [
     summary: 'A pact-bound caster with few slots that always recharge, plus at-will Eldritch Blast.',
     description:
       'Warlocks trade breadth for reliability: a couple of always-top-level slots back on a short rest, and invocations that reshape how you play.',
-    meta: { 'Hit Die': 'd8', 'Primary': 'Charisma', 'Saves': 'WIS & CHA' },
+    meta: { 'Hit Die': 'd8', 'Primary': 'Charisma', 'Saves': 'WIS & CHA' , 'Complexity': 'Moderate' },
+    tags: ["role-magic", "role-social", "complexity-medium"],
+    atTheTable: 'Fire Eldritch Blast all day for free, with a couple of powerful slots that come back on a short rest.',
     effects: [
       setStat('hitDie', 8),
       save('wis'),
@@ -897,7 +920,9 @@ const entries: Entry[] = [
     summary: 'The widest spell list in the game, learned from a book and prepared each day.',
     description:
       'Wizards study magic rather than inherit it. Their spellbook grows every level and with every scroll they find, making them the most flexible casters.',
-    meta: { 'Hit Die': 'd6', 'Primary': 'Intelligence', 'Saves': 'INT & WIS' },
+    meta: { 'Hit Die': 'd6', 'Primary': 'Intelligence', 'Saves': 'INT & WIS' , 'Complexity': 'Complex' },
+    tags: ["role-magic", "complexity-high"],
+    atTheTable: 'The widest spell list in the game. Prepare for the day ahead, and have an answer for almost anything.',
     effects: [
       setStat('hitDie', 6),
       save('int'),
@@ -969,4 +994,30 @@ export const classes: Collection = {
   label: 'Classes',
   singular: 'Class',
   entries,
+  /**
+   * Twelve classes is where new players stall. These let someone say what they
+   * want to *do* and see three or four candidates instead of the whole wall.
+   */
+  facets: [
+    {
+      id: 'role',
+      label: 'What do you want to be doing?',
+      options: [
+        { value: 'role-melee', label: 'Hitting things up close', description: 'Front line, soaking damage' },
+        { value: 'role-ranged', label: 'Attacking from range', description: 'Bows, thrown weapons, skirmishing' },
+        { value: 'role-magic', label: 'Casting spells', description: 'Blasting, controlling, transforming' },
+        { value: 'role-support', label: 'Healing and helping', description: 'Keeping everyone else standing' },
+        { value: 'role-social', label: 'Talking and sneaking', description: 'Faces, scouts, problem-solvers' },
+      ],
+    },
+    {
+      id: 'complexity',
+      label: 'How much bookkeeping do you want?',
+      options: [
+        { value: 'complexity-low', label: 'Keep it simple', description: 'Few moving parts, easy first character' },
+        { value: 'complexity-medium', label: 'Some moving parts', description: 'A handful of resources to track' },
+        { value: 'complexity-high', label: 'Give me everything', description: 'Spell lists and long option menus' },
+      ],
+    },
+  ],
 }

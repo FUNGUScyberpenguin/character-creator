@@ -53,6 +53,28 @@ export interface DerivedSpellcasting {
   chosen: Entry[]
 }
 
+/** One row of "what do I roll" for a weapon the character is carrying. */
+export interface DerivedAttack {
+  name: string
+  /** Ability the attack uses, e.g. "DEX". */
+  abilityAbbr: string
+  attackBonus: number
+  /** Damage dice plus the ability bonus, e.g. "1d8 + 3 slashing". */
+  damage: string
+  properties?: string
+  proficient: boolean
+}
+
+/** Something the character can do, grouped by when they can do it. */
+export interface DerivedAction {
+  name: string
+  timing: string
+  timingLabel: string
+  description: string
+  uses?: string
+  source: string
+}
+
 export interface DerivedStatValue {
   id: string
   label: string
@@ -62,6 +84,8 @@ export interface DerivedStatValue {
   signed: boolean
   slot: 'primary' | 'secondary' | 'combat'
   description?: string
+  /** Set when the player replaced the computed value by hand. */
+  override?: { value: number; note?: string }
 }
 
 export interface DerivedCharacter {
@@ -79,6 +103,8 @@ export interface DerivedCharacter {
   resources: DerivedResource[]
   spellcasting: DerivedSpellcasting[]
   inventory: InventoryItem[]
+  attacks: DerivedAttack[]
+  actions: DerivedAction[]
   notes: string[]
   stats: Record<string, number | string>
   derived: DerivedStatValue[]
@@ -184,6 +210,10 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
       bucket.push({ value: effect.value, expertise: !!effect.expertise })
     }
   }
+  for (const custom of state.customProficiencies) {
+    const bucket = (proficiencies[custom.category] ??= [])
+    if (!bucket.some((item) => item.value === custom.value)) bucket.push({ value: custom.value, expertise: false })
+  }
   for (const bucket of Object.values(proficiencies)) {
     bucket.sort((a, b) => a.value.localeCompare(b.value))
   }
@@ -229,10 +259,24 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
   const notes: string[] = []
   const granted: InventoryItem[] = []
 
+  const actions: DerivedAction[] = []
+  const timingLabel = (id: string) =>
+    ruleset.actionTimings?.find((timing) => timing.id === id)?.label ?? id
+
   for (const { effect, source } of effects) {
     switch (effect.type) {
       case 'feature':
         features.push({ name: effect.name, description: effect.description, uses: effect.uses, source })
+        if (effect.action) {
+          actions.push({
+            name: effect.name,
+            timing: effect.action,
+            timingLabel: timingLabel(effect.action),
+            description: effect.description,
+            uses: effect.uses,
+            source,
+          })
+        }
         break
       case 'resource':
         resources.push({ name: effect.name, value: evaluateInt(effect.formula, context) })
@@ -248,13 +292,38 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
     }
   }
 
+  for (const custom of state.customFeatures) {
+    features.push({ name: custom.name, description: custom.description, uses: custom.uses, source: 'Custom' })
+    if (custom.action) {
+      actions.push({
+        name: custom.name,
+        timing: custom.action,
+        timingLabel: timingLabel(custom.action),
+        description: custom.description,
+        uses: custom.uses,
+        source: 'Custom',
+      })
+    }
+  }
+
   const inventory = [...granted]
   for (const item of state.inventory) addItem(inventory, item.name, item.quantity)
+
+  const attacks = deriveAttacks(ruleset, inventory, proficiencies, abilityModifiers, context)
+
+  // Sort actions into the order the ruleset declares its timings.
+  const order = (ruleset.actionTimings ?? []).map((timing) => timing.id)
+  actions.sort((a, b) => {
+    const ai = order.indexOf(a.timing)
+    const bi = order.indexOf(b.timing)
+    return (ai < 0 ? order.length : ai) - (bi < 0 ? order.length : bi)
+  })
 
   const spellcasting = deriveSpellcasting(ruleset, state, effects, context, level, abilityModifiers)
 
   const derived: DerivedStatValue[] = ruleset.derived.map((stat) => {
-    const value = evaluateInt(stat.formula, context)
+    const override = state.overrides[stat.id]
+    const value = override ? override.value : evaluateInt(stat.formula, context)
     const plain = stat.signed ? (value >= 0 ? `+${value}` : `${value}`) : String(value)
     return {
       id: stat.id,
@@ -264,6 +333,7 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
       signed: !!stat.signed,
       slot: stat.slot ?? 'secondary',
       description: stat.description,
+      override,
     }
   })
 
@@ -285,11 +355,88 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
     resources,
     spellcasting,
     inventory,
+    attacks,
+    actions,
     notes,
     stats,
     derived,
     context,
   }
+}
+
+/**
+ * Work out what each carried weapon rolls.
+ *
+ * Everything system-specific — which ability applies, what counts as
+ * proficiency, how the bonus is assembled — comes from `ruleset.weapons`, so a
+ * game where axes key off Willpower needs no code here.
+ */
+function deriveAttacks(
+  ruleset: Ruleset,
+  inventory: InventoryItem[],
+  proficiencies: Record<string, { value: string; expertise: boolean }[]>,
+  abilityModifiers: Record<string, number>,
+  context: Record<string, number>,
+): DerivedAttack[] {
+  const rules = ruleset.weapons
+  if (!rules) return []
+
+  const collection = findCollection(ruleset, rules.collection)
+  if (!collection) return []
+
+  const held = (proficiencies[rules.proficiencyCategory] ?? []).map((item) => item.value.toLowerCase())
+  const damageKey = rules.damageKey ?? 'Damage'
+  const propertiesKey = rules.propertiesKey ?? 'Properties'
+  const attacks: DerivedAttack[] = []
+
+  for (const item of inventory) {
+    const entry = collection.entries.find((candidate) => candidate.name.toLowerCase() === item.name.toLowerCase())
+    if (!entry || !(entry.tags ?? []).includes(rules.tag)) continue
+
+    const properties = String(entry.meta?.[propertiesKey] ?? '')
+    const tags = entry.tags ?? []
+
+    // First matching rule decides which ability applies; several abilities
+    // means take the best, which is how a finesse weapon behaves.
+    let abilities = [ruleset.abilities[0]?.id ?? 'str']
+    for (const rule of rules.abilityRules) {
+      const matchesProperty = rule.property ? properties.toLowerCase().includes(rule.property.toLowerCase()) : true
+      const matchesTag = rule.tag ? tags.includes(rule.tag) : true
+      if (matchesProperty && matchesTag) {
+        abilities = rule.abilities
+        break
+      }
+    }
+    const best = abilities.reduce((chosen, id) =>
+      (abilityModifiers[id] ?? 0) > (abilityModifiers[chosen] ?? 0) ? id : chosen,
+    )
+    const weaponMod = abilityModifiers[best] ?? 0
+
+    const blanket = Object.entries(rules.blanketProficiencies ?? {})
+      .filter(([tag]) => tags.includes(tag))
+      .map(([, value]) => value.toLowerCase())
+    const proficient = held.includes(entry.name.toLowerCase()) || blanket.some((value) => held.includes(value))
+
+    const local = { ...context, weaponMod, proficient: proficient ? 1 : 0 }
+    const attackBonus = evaluateInt(rules.attackFormula ?? 'weaponMod + if(proficient, prof, 0)', local)
+    const damageBonus = evaluateInt(rules.damageBonusFormula ?? 'weaponMod', local)
+
+    const dice = String(entry.meta?.[damageKey] ?? '').trim()
+    const damage = dice
+      ? dice.replace(/^(\S+)/, (match) => (damageBonus === 0 ? match : `${match} ${damageBonus > 0 ? '+' : '-'} ${Math.abs(damageBonus)}`))
+      : '—'
+
+    attacks.push({
+      name: item.quantity > 1 ? `${entry.name} (x${item.quantity})` : entry.name,
+      abilityAbbr: ruleset.abilities.find((a) => a.id === best)?.abbr ?? best.toUpperCase(),
+      attackBonus,
+      damage,
+      properties: properties && properties !== '—' ? properties : undefined,
+      proficient,
+    })
+  }
+
+  return attacks
 }
 
 /**

@@ -1,8 +1,11 @@
+import { useState } from 'react'
+
 import { stepKey } from '../../engine/character'
 import { findCollection } from '../../engine/resolve'
 import type { Step } from '../../engine/types'
 import { useStore } from '../../state/store'
 import { ChoiceList } from '../ChoiceList'
+import { FacetFilter, selectEntries } from '../FacetFilter'
 import { Callout, Field, OptionCard } from '../common'
 
 export function IntroStep({ step }: { step: Extract<Step, { kind: 'intro' }> }) {
@@ -73,6 +76,7 @@ export function LevelStep() {
 
 export function PickStep({ step }: { step: Extract<Step, { kind: 'pick' }> }) {
   const { ruleset, character, derived, toggleSelection } = useStore()
+  const [facets, setFacets] = useState<Record<string, string[]>>({})
   const collection = findCollection(ruleset, step.collection)
   if (!collection) return <p className="empty">This step points at a collection that does not exist.</p>
 
@@ -81,15 +85,40 @@ export function PickStep({ step }: { step: Extract<Step, { kind: 'pick' }> }) {
   const count = step.count ?? 1
   const stepChoices = derived.resolution.choices.filter((choice) => choice.stepId === step.id)
 
+  // Filtering never hides something you already chose — losing your own pick
+  // behind a filter is disorienting.
+  const { shown: visible, exact } = selectEntries(collection.entries, facets, (entry) => selected.includes(entry.id))
+
   return (
     <div className="stack">
+      {collection.facets && collection.facets.length > 0 && (
+        <FacetFilter
+          facets={collection.facets}
+          active={facets}
+          matched={visible.length}
+          total={collection.entries.length}
+          exact={exact}
+          onClear={() => setFacets({})}
+          onToggle={(facetId, value) =>
+            setFacets((current) => {
+              const values = current[facetId] ?? []
+              return {
+                ...current,
+                [facetId]: values.includes(value) ? values.filter((v) => v !== value) : [...values, value],
+              }
+            })
+          }
+        />
+      )}
+
       <div className="grid grid-cards">
-        {collection.entries.map((entry) => (
+        {visible.map((entry) => (
           <OptionCard
             key={entry.id}
             name={entry.name}
             summary={entry.summary}
             description={entry.description}
+            atTheTable={entry.atTheTable}
             icon={entry.icon}
             meta={entry.meta}
             selected={selected.includes(entry.id)}
@@ -155,38 +184,72 @@ export function IdentityStep({ step }: { step: Extract<Step, { kind: 'identity' 
       <div className="field-grid">
         {step.fields.map((field) => (
           <div key={field.id} className={field.kind === 'textarea' ? 'field-wide' : ''}>
-            <Field label={field.label}>
-              {field.kind === 'textarea' ? (
-                <textarea
-                  rows={3}
-                  value={character.identity[field.id] ?? ''}
-                  placeholder={field.placeholder}
-                  onChange={(event) => setIdentityField(field.id, event.target.value)}
-                />
-              ) : field.kind === 'select' ? (
-                <select
-                  value={character.identity[field.id] ?? ''}
-                  onChange={(event) => setIdentityField(field.id, event.target.value)}
-                >
-                  <option value="">—</option>
-                  {(field.options ?? []).map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </select>
-              ) : (
-                <input
-                  type="text"
-                  value={character.identity[field.id] ?? ''}
-                  placeholder={field.placeholder}
-                  onChange={(event) => setIdentityField(field.id, event.target.value)}
-                />
-              )}
-            </Field>
+            <PromptField
+              field={field}
+              value={character.identity[field.id] ?? ''}
+              onChange={(value) => setIdentityField(field.id, value)}
+            />
           </div>
         ))}
       </div>
+    </div>
+  )
+}
+
+/**
+ * One question. Suggestions are deliberately concrete and slightly odd — a
+ * blank box asking for "Bonds" produces nothing, while "name someone still
+ * alive who matters" plus an example produces an answer.
+ */
+function PromptField({
+  field,
+  value,
+  onChange,
+}: {
+  field: Extract<Step, { kind: 'identity' }>['fields'][number]
+  value: string
+  onChange: (value: string) => void
+}) {
+  const [suggestionIndex, setSuggestionIndex] = useState(0)
+  const suggestions = field.suggestions ?? []
+  const suggestion = suggestions[suggestionIndex % Math.max(suggestions.length, 1)]
+
+  return (
+    <div className="prompt">
+      <Field label={field.label} hint={field.hint}>
+        {field.kind === 'textarea' ? (
+          <textarea rows={3} value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} />
+        ) : field.kind === 'select' ? (
+          <select value={value} onChange={(event) => onChange(event.target.value)}>
+            <option value="">—</option>
+            {(field.options ?? []).map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
+          </select>
+        ) : (
+          <input type="text" value={value} placeholder={field.placeholder} onChange={(event) => onChange(event.target.value)} />
+        )}
+      </Field>
+
+      {suggestions.length > 0 && (
+        <div className="prompt-suggestion">
+          <p className="prompt-example">“{suggestion}”</p>
+          <div className="prompt-actions">
+            <button type="button" className="link" onClick={() => setSuggestionIndex((index) => index + 1)}>
+              Another idea
+            </button>
+            <button
+              type="button"
+              className="link"
+              onClick={() => onChange(value ? `${value.trim()} ${suggestion}` : (suggestion ?? ''))}
+            >
+              Use this
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

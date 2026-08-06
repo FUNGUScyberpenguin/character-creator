@@ -1,3 +1,4 @@
+import { SettingsBar } from './components/SettingsBar'
 import { StepRail } from './components/StepRail'
 import { SummaryPanel } from './components/SummaryPanel'
 import { Wizard } from './components/Wizard'
@@ -17,14 +18,17 @@ export default function App() {
               <em>Build a character, get a PDF</em>
             </span>
           </a>
-          <a
-            className="topbar-link"
-            href="https://github.com/FUNGUScyberpenguin/character-creator"
-            target="_blank"
-            rel="noreferrer noopener"
-          >
-            Source on GitHub
-          </a>
+          <div className="topbar-actions">
+            <SettingsBar />
+            <a
+              className="topbar-link"
+              href="https://github.com/FUNGUScyberpenguin/character-creator"
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              Source on GitHub
+            </a>
+          </div>
         </header>
 
         <main className="layout">

@@ -73,7 +73,7 @@ Nothing mutates a character except an effect. The full set:
 | `{ type: 'proficiency', category, value, expertise? }` | Add a proficiency |
 | `{ type: 'set', stat, value }` | Write a value into the stat bag |
 | `{ type: 'bonus', stat, amount }` | Add to a numeric stat |
-| `{ type: 'feature', name, description, uses? }` | A described feature on the sheet |
+| `{ type: 'feature', name, description, uses?, action? }` | A described feature on the sheet |
 | `{ type: 'resource', name, formula }` | A tracked pool (ki, rages, sorcery points) |
 | `{ type: 'spellcasting', ... }` | Marks a spellcasting source; drives the spells step |
 | `{ type: 'item', item, quantity? }` | Put something in the pack |
@@ -155,6 +155,90 @@ Because the highest applicable `set` wins, per-level tables are just repeated
 { type: 'spellcasting', spellsKnown: 'stat.spellsKnown', ... }
 ```
 
+## What a turn looks like
+
+Two things drive the sheet's "on your turn" section — the part a player reads
+mid-combat, and the answer to the most common complaint DMs raise.
+
+**Features that are things you do** carry an `action`, matching an id in
+`ruleset.actionTimings`:
+
+```ts
+actionTimings: [
+  { id: 'action', label: 'Action' },
+  { id: 'bonus', label: 'Bonus action' },
+  { id: 'reaction', label: 'Reaction' },
+]
+```
+
+The 5e ruleset keeps these in a lookup table (`timings.ts`) applied in one pass
+while the ruleset is assembled, rather than repeating an argument on hundreds of
+`feature()` calls.
+
+**Weapons become attack rows** when the ruleset declares how:
+
+```ts
+weapons: {
+  collection: 'equipment',
+  tag: 'weapon',
+  proficiencyCategory: 'weapon',
+  abilityRules: [
+    { property: 'Finesse', abilities: ['str', 'dex'] },  // best of the two
+    { tag: 'ranged', abilities: ['dex'] },
+    { abilities: ['str'] },
+  ],
+  blanketProficiencies: { simple: 'Simple weapons', martial: 'Martial weapons' },
+  attackFormula: 'weaponMod + if(proficient, prof, 0)',
+  damageBonusFormula: 'weaponMod',
+}
+```
+
+Carried items are matched against the collection by name. The first ability rule
+that matches wins; listing several abilities takes the best of them. Both
+formulas see `weaponMod` and `proficient` (1 or 0) on top of the usual context.
+Omit `weapons` entirely and the sheet just lists equipment.
+
+## Helping someone choose
+
+A collection can declare `facets` — filters phrased as questions about what the
+player wants, rather than as categories:
+
+```ts
+facets: [
+  {
+    id: 'role',
+    label: 'What do you want to be doing?',
+    options: [{ value: 'role-melee', label: 'Hitting things up close' }],
+  },
+]
+```
+
+Entries opt in through `tags`. Combining filters can describe something the game
+does not offer, so the UI falls back to the closest matches and says so rather
+than showing an empty list.
+
+Entries can also carry `atTheTable`, a plain-language sentence about what a turn
+actually feels like. New players cannot infer this from a list of granted
+features, and it is shown prominently for that reason.
+
+## Asking good questions
+
+Identity fields are prompts, not form labels. `hint` explains why the question is
+worth answering and `suggestions` offers concrete example answers:
+
+```ts
+{
+  id: 'connection',
+  label: 'Name one person who is still alive and matters to them',
+  kind: 'textarea',
+  hint: 'Living people give your DM someone to write into the story.',
+  suggestions: ['Their old mentor, who still writes and still disapproves.'],
+}
+```
+
+The exporter reads these from the ruleset, so rewording or adding a question
+never silently drops it from the sheet.
+
 ## Steps
 
 `steps` is the wizard, in order. Every step kind has a matching component.
@@ -169,7 +253,7 @@ Because the highest applicable `set` wins, per-level tables are just repeated
 | `equipment` | Granted gear plus a browsable shop |
 | `spells` | Per spellcasting source, filtered by slot level |
 | `identity` | Free-text fields you declare |
-| `review` | The sheet preview and the export buttons |
+| `review` | The sheet preview, export buttons, and the override panel |
 
 Steps never block navigation. Validation reports what is outstanding; the player
 decides when to deal with it.

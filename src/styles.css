@@ -1413,3 +1413,479 @@ textarea {
   font-size: 12.5px;
   color: var(--ink-soft);
 }
+
+/* ------------------------------------------------- accessibility settings */
+
+/*
+ * Text scale multiplies a single root size, so every rem-derived measurement
+ * grows together and the layout keeps working rather than overlapping.
+ */
+:root {
+  --text-scale: 1;
+}
+
+body {
+  font-size: calc(15px * var(--text-scale));
+}
+
+:root[data-readable-font='on'] body {
+  font-family: Verdana, Tahoma, 'DejaVu Sans', sans-serif;
+  letter-spacing: 0.015em;
+  word-spacing: 0.06em;
+  line-height: 1.7;
+}
+
+:root[data-readable-font='on'] h1,
+:root[data-readable-font='on'] h2,
+:root[data-readable-font='on'] h3 {
+  font-family: inherit;
+}
+
+:root[data-contrast='high'] {
+  --ink: #000;
+  --ink-soft: #1a1a1a;
+  --ink-faint: #333;
+  --paper: #fff;
+  --surface: #fff;
+  --surface-alt: #f2f2f2;
+  --line: #000;
+  --accent: #4b0082;
+  --accent-soft: #ede4f7;
+  --accent-ink: #33005c;
+  --shadow: none;
+  --shadow-lift: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root[data-contrast='high'] {
+    --ink: #fff;
+    --ink-soft: #eee;
+    --ink-faint: #ddd;
+    --paper: #000;
+    --surface: #000;
+    --surface-alt: #1a1a1a;
+    --line: #fff;
+    --accent: #d9b8ff;
+    --accent-soft: #2a1a3a;
+    --accent-ink: #eadcff;
+  }
+}
+
+:root[data-contrast='high'] .card,
+:root[data-contrast='high'] .button,
+:root[data-contrast='high'] input,
+:root[data-contrast='high'] select,
+:root[data-contrast='high'] textarea {
+  border-width: 2px;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.settings {
+  position: relative;
+}
+
+.settings-toggle {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.settings-toggle:hover {
+  border-color: var(--accent);
+}
+
+.settings-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  z-index: 20;
+  width: min(320px, calc(100vw - 32px));
+  padding: 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-lift);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.settings-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.settings-scale {
+  display: flex;
+  gap: 4px;
+}
+
+.settings-scale button {
+  flex: 1;
+  padding: 6px 4px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.settings-scale button.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.settings-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.settings-check input {
+  width: auto;
+  margin-top: 3px;
+  flex: none;
+}
+
+.settings-check em {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  font-weight: 400;
+}
+
+/* -------------------------------------------------------------- facets */
+
+.facets {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface-alt);
+}
+
+.facet {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+.facet legend {
+  padding: 0;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.facet-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.facet-chip {
+  padding: 6px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.facet-chip:hover {
+  border-color: var(--accent);
+}
+
+.facet-chip.is-selected {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.facet-status {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.card-table {
+  display: block;
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--accent);
+  background: var(--surface-alt);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  font-size: 12.5px;
+  color: var(--ink-soft);
+}
+
+.card.is-selected .card-table {
+  background: var(--surface);
+}
+
+.card-table-label {
+  display: block;
+  font-size: 9.5px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+/* ------------------------------------------------------ identity prompts */
+
+.prompt-suggestion {
+  margin-top: 8px;
+  padding: 10px 12px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface-alt);
+}
+
+.prompt-example {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--ink-soft);
+  margin-bottom: 6px;
+}
+
+.prompt-actions {
+  display: flex;
+  gap: 14px;
+  font-size: 12.5px;
+}
+
+/* ------------------------------------------------------- on your turn */
+
+.turn-group h4 {
+  margin: 12px 0 6px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+}
+
+.turn-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.turn-list li {
+  font-size: 13px;
+  padding: 6px 10px;
+  border-left: 2px solid var(--line);
+  background: var(--surface);
+}
+
+.turn-list strong {
+  margin-right: 8px;
+}
+
+.turn-list span {
+  color: var(--ink-soft);
+}
+
+.turn-uses {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 10.5px;
+}
+
+.attacks {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.attacks th {
+  text-align: left;
+  font-size: 10.5px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  border-bottom: 1px solid var(--line);
+  padding: 4px 6px;
+}
+
+.attacks td {
+  padding: 5px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+.attacks em {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--ink-faint);
+}
+
+/* ----------------------------------------------------- escape hatch */
+
+.disclosure-boxed {
+  padding: 14px 16px;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius);
+}
+
+.disclosure-boxed summary {
+  margin-bottom: 0;
+  font-weight: 600;
+}
+
+.disclosure-boxed[open] summary {
+  margin-bottom: 16px;
+}
+
+.override-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.override-list li {
+  display: grid;
+  grid-template-columns: 1fr 90px minmax(0, 1.4fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  font-size: 13.5px;
+}
+
+.override-list li.is-overridden {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.override-label {
+  font-weight: 500;
+}
+
+.custom-list {
+  list-style: none;
+  margin: 0 0 14px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.custom-list li {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+}
+
+.custom-list p {
+  font-size: 12.5px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.custom-timing {
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+  font-size: 10.5px;
+}
+
+.custom-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.chips-large .chip {
+  font-size: 12.5px;
+  padding: 4px 10px;
+  align-items: center;
+}
+
+.chips-large .chip button {
+  border: 0;
+  background: none;
+  padding: 0 0 0 4px;
+  font-size: 14px;
+  line-height: 1;
+  color: var(--ink-faint);
+}
+
+.export-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+}
+
+.export-options legend {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 0 6px;
+}
+
+.export-options label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.export-options input {
+  width: auto;
+  flex: none;
+  margin-top: 3px;
+}
+
+.export-options em {
+  display: block;
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--ink-faint);
+}
+
+.tile.is-overridden {
+  border-color: var(--warn);
+}
+
+.tile abbr {
+  color: var(--warn);
+  text-decoration: none;
+  font-size: 14px;
+}

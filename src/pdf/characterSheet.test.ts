@@ -73,3 +73,48 @@ describe('PDF export', () => {
     expect(parsed.getTitle()).toBe('Ilra "The Ink" - Duskwren - character sheet')
   })
 })
+
+describe('sheet content', () => {
+  /**
+   * The sheet reads its prompts from the ruleset. This guards the mistake made
+   * when the identity step was reworded: three new questions were answered by
+   * the player and silently never printed, because the exporter still named the
+   * old fields by hand.
+   */
+  it('prints every free-text answer the ruleset asks for', async () => {
+    const step = dnd5e.steps.find((s) => s.kind === 'identity')!
+    const fields = 'fields' in step ? step.fields.filter((f) => f.kind === 'textarea') : []
+    expect(fields.length).toBeGreaterThan(3)
+
+    // Content streams are compressed, so we cannot grep the bytes for the text.
+    // Instead: answering one more question must make the document bigger. Add
+    // the answers one at a time and require growth at every step, which fails
+    // the moment a field stops being rendered.
+    const state = wizard()
+    state.identity = {}
+    let previous = (await render(state)).byteLength
+
+    for (const field of fields) {
+      state.identity[field.id] = `The answer to ${field.id}, long enough to occupy a line of its own on the page.`
+      const size = (await render(state)).byteLength
+      expect(size, `answering "${field.label}" changed nothing on the sheet`).toBeGreaterThan(previous)
+      previous = size
+    }
+  })
+
+  it('renders an ink-friendly sheet without filled panels', async () => {
+    const colour = await renderCharacterSheet(dnd5e, deriveCharacter(dnd5e, wizard()))
+    const mono = await renderCharacterSheet(dnd5e, deriveCharacter(dnd5e, wizard()), { monochrome: true })
+
+    const { PDFDocument } = await import('pdf-lib')
+    expect((await PDFDocument.load(mono)).getPageCount()).toBeGreaterThanOrEqual(2)
+    // Different palettes must produce different bytes, or the flag does nothing.
+    expect(Buffer.from(mono).equals(Buffer.from(colour))).toBe(false)
+  })
+
+  it('adds ruled space only when asked', async () => {
+    const plain = await renderCharacterSheet(dnd5e, deriveCharacter(dnd5e, wizard()))
+    const ruled = await renderCharacterSheet(dnd5e, deriveCharacter(dnd5e, wizard()), { noteSpace: true })
+    expect(ruled.byteLength).toBeGreaterThan(plain.byteLength)
+  })
+})

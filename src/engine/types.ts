@@ -12,6 +12,12 @@
 /** An expression evaluated by `src/engine/expression.ts`, e.g. `"10 + mod(dex)"`. */
 export type Expression = string
 
+/**
+ * When something is used on your turn. Rulesets with a different action economy
+ * declare their own labels in `Ruleset.actionTimings`.
+ */
+export type ActionTiming = string
+
 // ---------------------------------------------------------------------------
 // Abilities, skills, proficiencies
 // ---------------------------------------------------------------------------
@@ -64,6 +70,12 @@ export type Effect =
       description: string
       /** Optional "3/long rest"-style usage note. */
       uses?: string
+      /**
+       * When this is used, if it is something you *do*. Features carrying a
+       * timing are collected into the sheet's "on your turn" section, which is
+       * the part players actually read mid-combat.
+       */
+      action?: ActionTiming
     }
   /** A tracked, numeric pool such as Rage uses or Ki points. */
   | { type: 'resource'; name: string; formula: Expression }
@@ -154,11 +166,24 @@ export interface Entry {
   icon?: string
   /** Small key/value chips shown on the card, e.g. { 'Hit Die': 'd10' }. */
   meta?: Record<string, string | number>
+  /**
+   * What a turn actually looks like, in plain language. Shown prominently,
+   * because a new player cannot predict this from a list of granted features.
+   */
+  atTheTable?: string
   tags?: string[]
   effects?: Effect[]
   choices?: Choice[]
   /** Grants that unlock as the character levels up. */
   levels?: LevelGrant[]
+}
+
+/** A way to narrow a long list of entries by what the player wants, not by name. */
+export interface Facet {
+  id: string
+  /** Question form, e.g. "What do you want to do at the table?" */
+  label: string
+  options: { value: string; label: string; description?: string }[]
 }
 
 export interface Collection {
@@ -168,6 +193,8 @@ export interface Collection {
   /** Singular label used in prompts, e.g. "Class". */
   singular: string
   entries: Entry[]
+  /** Optional filters shown above the cards; entries opt in via `tags`. */
+  facets?: Facet[]
 }
 
 // ---------------------------------------------------------------------------
@@ -202,6 +229,10 @@ export interface IdentityField {
   options?: string[]
   /** Blocks progress until filled in. */
   required?: boolean
+  /** A sentence explaining why this question is worth answering. */
+  hint?: string
+  /** Example answers, offered one at a time behind a "give me an idea" button. */
+  suggestions?: string[]
 }
 
 export type Step =
@@ -289,4 +320,48 @@ export interface Ruleset {
     saveDC?: Expression
     attackBonus?: Expression
   }
+  /**
+   * The order timings appear in on the sheet, and how they are labelled.
+   * Anything a feature declares that is not listed here still shows, at the end.
+   */
+  actionTimings?: { id: ActionTiming; label: string }[]
+  /**
+   * How carried weapons become attack lines. Without this the sheet simply
+   * lists equipment, which is what a system with no weapon attacks wants.
+   */
+  weapons?: WeaponRules
+}
+
+/**
+ * Turns an item in the pack into a row of "what do I roll".
+ *
+ * The engine matches inventory against a collection by name, works out which
+ * ability applies, checks proficiency, and evaluates the two formulas with
+ * `weaponMod` (the chosen ability's modifier) and `proficient` (1 or 0) in
+ * scope alongside the usual context.
+ */
+export interface WeaponRules {
+  /** Collection holding the items — normally the equipment list. */
+  collection: string
+  /** Tag marking an entry as a weapon. */
+  tag: string
+  /** Proficiency category checked for weapon proficiency. */
+  proficiencyCategory: string
+  /**
+   * Which ability a weapon uses, first match wins. `property` matches against
+   * the entry's properties text, `tag` against its tags. Listing more than one
+   * ability takes the best of them, which is how "finesse" works.
+   */
+  abilityRules: { property?: string; tag?: string; abilities: string[] }[]
+  /**
+   * Proficiency values that cover a whole tag, e.g. `{ martial: 'Martial weapons' }`
+   * means holding "Martial weapons" makes you proficient with every martial tag.
+   */
+  blanketProficiencies?: Record<string, string>
+  /** Meta key holding the damage dice, e.g. "Damage". */
+  damageKey?: string
+  /** Meta key holding the properties text, e.g. "Properties". */
+  propertiesKey?: string
+  attackFormula?: Expression
+  damageBonusFormula?: Expression
 }

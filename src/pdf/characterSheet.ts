@@ -22,11 +22,49 @@ const MARGIN = 36
 // stays out of the initial bundle: it is imported dynamically on first export.
 const rgb = (red: number, green: number, blue: number): Color => ({ type: 'RGB', red, green, blue }) as Color
 
-const INK = rgb(0.11, 0.1, 0.12)
-const MUTED = rgb(0.42, 0.4, 0.45)
-const RULE = rgb(0.75, 0.73, 0.78)
-const PANEL = rgb(0.96, 0.955, 0.97)
-const ACCENT = rgb(0.42, 0.24, 0.55)
+/** Screen palette. `monochrome` swaps in the ink-saving equivalents. */
+const COLOUR = {
+  ink: rgb(0.11, 0.1, 0.12),
+  muted: rgb(0.42, 0.4, 0.45),
+  rule: rgb(0.75, 0.73, 0.78),
+  panel: rgb(0.96, 0.955, 0.97),
+  accent: rgb(0.42, 0.24, 0.55),
+}
+
+/**
+ * Printing is the point for a lot of tables, and not everyone has a colour
+ * printer — nor wants to spend the ink if they do. This drops every fill and
+ * every accent to black on white.
+ */
+const MONO = {
+  ink: rgb(0, 0, 0),
+  muted: rgb(0.35, 0.35, 0.35),
+  rule: rgb(0.6, 0.6, 0.6),
+  panel: rgb(1, 1, 1),
+  accent: rgb(0, 0, 0),
+}
+
+export interface SheetOptions {
+  /** Black on white, with no filled panels. */
+  monochrome?: boolean
+  /** Adds ruled space for hit points, conditions, and session notes. */
+  noteSpace?: boolean
+}
+
+let INK = COLOUR.ink
+let MUTED = COLOUR.muted
+let RULE = COLOUR.rule
+let PANEL = COLOUR.panel
+let ACCENT = COLOUR.accent
+
+function usePalette(monochrome: boolean): void {
+  const palette = monochrome ? MONO : COLOUR
+  INK = palette.ink
+  MUTED = palette.muted
+  RULE = palette.rule
+  PANEL = palette.panel
+  ACCENT = palette.accent
+}
 
 interface Fonts {
   regular: PDFFont
@@ -122,6 +160,16 @@ class Sheet {
 
   panel(x: number, y: number, width: number, height: number): void {
     this.page.drawRectangle({ x, y, width, height, color: PANEL, borderColor: RULE, borderWidth: 0.75 })
+  }
+
+  /** Ruled lines for writing on — hit points, conditions, whatever comes up. */
+  ruledSpace(label: string, x: number, y: number, width: number, lines: number): number {
+    let cursor = this.heading(label, x, y, width)
+    for (let i = 0; i < lines; i += 1) {
+      this.rule(x, cursor, width)
+      cursor -= 16
+    }
+    return cursor
   }
 
   rule(x: number, y: number, width: number): void {
@@ -356,7 +404,13 @@ class Flow {
  * It continues down the first page when the stat columns left room, which for
  * most characters keeps the whole sheet to two pages.
  */
-function drawFeaturesAndSpells(sheet: Sheet, derived: DerivedCharacter, startY: number): void {
+function drawFeaturesAndSpells(
+  sheet: Sheet,
+  ruleset: Ruleset,
+  derived: DerivedCharacter,
+  startY: number,
+  options: SheetOptions = {},
+): void {
   const width = PAGE_WIDTH - MARGIN * 2
 
   // Below this there is not enough room for a heading and a first entry, so
@@ -369,6 +423,27 @@ function drawFeaturesAndSpells(sheet: Sheet, derived: DerivedCharacter, startY: 
   }
 
   const flow = new Flow(sheet, MARGIN, width, top)
+
+  if (derived.attacks.length || derived.actions.length) {
+    flow.heading('On Your Turn')
+
+    for (const attack of derived.attacks) {
+      const note = attack.proficient ? (attack.properties ?? '') : 'not proficient'
+      flow.line(
+        `${attack.name}  —  ${signed(attack.attackBonus)} to hit (${attack.abilityAbbr}), ${attack.damage}${note ? `  [${note}]` : ''}`,
+      )
+    }
+    if (derived.attacks.length) flow.gap(4)
+
+    const grouped = new Map<string, typeof derived.actions>()
+    for (const action of derived.actions) {
+      grouped.set(action.timingLabel, [...(grouped.get(action.timingLabel) ?? []), action])
+    }
+    for (const [label, actions] of grouped) {
+      flow.line(`${label.toUpperCase()}: ${actions.map((a) => (a.uses ? `${a.name} (${a.uses})` : a.name)).join(', ')}`, 8)
+    }
+    flow.gap()
+  }
 
   if (derived.features.length) {
     flow.heading('Features & Traits')
@@ -425,22 +500,44 @@ function drawFeaturesAndSpells(sheet: Sheet, derived: DerivedCharacter, startY: 
     flow.gap()
   }
 
-  const identity = derived.state.identity
-  const personality: [string, string][] = [
-    ['Appearance', identity['appearance'] ?? ''],
-    ['Personality traits', identity['traits'] ?? ''],
-    ['Ideals', identity['ideals'] ?? ''],
-    ['Bonds', identity['bonds'] ?? ''],
-    ['Flaws', identity['flaws'] ?? ''],
-    ['Backstory', identity['backstory'] ?? ''],
-  ]
-  const filled = personality.filter(([, value]) => value.trim())
+  // Read the questions from the ruleset rather than naming them here, so
+  // rewording or adding a prompt cannot silently drop it from the sheet.
+  const identityStep = ruleset.steps.find((step) => step.kind === 'identity')
+  const identityFields = identityStep && 'fields' in identityStep ? identityStep.fields : []
+  const filled = identityFields
+    // Short factual answers already appear in the header or the stat blocks.
+    .filter((field) => field.kind === 'textarea')
+    .map((field) => [field.label, derived.state.identity[field.id] ?? ''] as [string, string])
+    .filter(([, value]) => value.trim())
 
   if (filled.length || derived.state.notes.trim()) {
     flow.heading('Character')
     for (const [label, value] of filled) flow.entry(label, value)
     if (derived.state.notes.trim()) flow.entry('Notes', derived.state.notes)
   }
+
+  if (options.noteSpace) {
+    // Anything below this and the ruled lines would be a two-line orphan.
+    if (flow.position - MARGIN < 220) {
+      sheet.newPage()
+      drawNoteSpace(sheet, PAGE_HEIGHT - MARGIN)
+    } else {
+      drawNoteSpace(sheet, flow.position - 10)
+    }
+  }
+}
+
+/** Ruled space to write in during play. */
+function drawNoteSpace(sheet: Sheet, top: number): void {
+  const width = PAGE_WIDTH - MARGIN * 2
+  const half = (width - 16) / 2
+
+  const left = sheet.ruledSpace('Hit Points & Conditions', MARGIN, top, half, 5)
+  sheet.ruledSpace('Currency & Treasure', MARGIN + half + 16, top, half, 5)
+
+  const notesTop = Math.min(left, top) - 8
+  const lines = Math.max(0, Math.floor((notesTop - MARGIN - 20) / 16))
+  if (lines > 0) sheet.ruledSpace('Session Notes', MARGIN, notesTop, width, lines)
 }
 
 function drawFooter(sheet: Sheet, ruleset: Ruleset, pageIndex: number, pageCount: number): void {
@@ -456,7 +553,12 @@ function drawFooter(sheet: Sheet, ruleset: Ruleset, pageIndex: number, pageCount
 }
 
 /** Build the character sheet and return the raw PDF bytes. */
-export async function renderCharacterSheet(ruleset: Ruleset, derived: DerivedCharacter): Promise<Uint8Array> {
+export async function renderCharacterSheet(
+  ruleset: Ruleset,
+  derived: DerivedCharacter,
+  options: SheetOptions = {},
+): Promise<Uint8Array> {
+  usePalette(!!options.monochrome)
   const { PDFDocument, StandardFonts } = await import('pdf-lib')
 
   const doc = await PDFDocument.create()
@@ -489,7 +591,7 @@ export async function renderCharacterSheet(ruleset: Ruleset, derived: DerivedCha
   right = drawProficiencies(sheet, ruleset, derived, col3, right, columnWidth)
   right = drawInventory(sheet, derived, col3, right, columnWidth)
 
-  drawFeaturesAndSpells(sheet, derived, Math.min(left, middle, right))
+  drawFeaturesAndSpells(sheet, ruleset, derived, Math.min(left, middle, right), options)
 
   const pages = doc.getPages()
   pages.forEach((page, index) => {
@@ -501,8 +603,12 @@ export async function renderCharacterSheet(ruleset: Ruleset, derived: DerivedCha
 }
 
 /** Render the sheet and hand it to the browser as a download. */
-export async function downloadCharacterSheet(ruleset: Ruleset, derived: DerivedCharacter): Promise<void> {
-  const bytes = await renderCharacterSheet(ruleset, derived)
+export async function downloadCharacterSheet(
+  ruleset: Ruleset,
+  derived: DerivedCharacter,
+  options: SheetOptions = {},
+): Promise<void> {
+  const bytes = await renderCharacterSheet(ruleset, derived, options)
   const fileName = `${(derived.state.name || 'character').replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.pdf`
   triggerDownload(new Blob([bytes as BlobPart], { type: 'application/pdf' }), fileName)
 }

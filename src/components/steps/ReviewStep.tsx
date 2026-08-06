@@ -4,6 +4,7 @@ import { describeCharacter } from '../../engine/derive'
 import { downloadCharacterSheet, triggerDownload } from '../../pdf/characterSheet'
 import { useStore } from '../../state/store'
 import { Callout } from '../common'
+import { EscapeHatch } from './EscapeHatch'
 
 function signed(value: number): string {
   return value >= 0 ? `+${value}` : `${value}`
@@ -13,6 +14,8 @@ export function ReviewStep() {
   const { ruleset, character, derived, validation, goToStepId } = useStore()
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [monochrome, setMonochrome] = useState(false)
+  const [noteSpace, setNoteSpace] = useState(true)
   const fileInput = useRef<HTMLInputElement>(null)
   const { loadFrom, reset } = useStore()
 
@@ -24,7 +27,7 @@ export function ReviewStep() {
     setBusy(true)
     setError(null)
     try {
-      await downloadCharacterSheet(ruleset, derived)
+      await downloadCharacterSheet(ruleset, derived, { monochrome, noteSpace })
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'The PDF could not be generated.')
     } finally {
@@ -68,6 +71,24 @@ export function ReviewStep() {
         />
       </div>
 
+      <fieldset className="export-options">
+        <legend>PDF options</legend>
+        <label>
+          <input type="checkbox" checked={monochrome} onChange={(e) => setMonochrome(e.target.checked)} />
+          <span>
+            Ink-friendly
+            <em>Black and white, no filled panels. Kinder to a home printer.</em>
+          </span>
+        </label>
+        <label>
+          <input type="checkbox" checked={noteSpace} onChange={(e) => setNoteSpace(e.target.checked)} />
+          <span>
+            Room to write
+            <em>Ruled space for hit points, treasure, and session notes.</em>
+          </span>
+        </label>
+      </fieldset>
+
       {error && <Callout tone="warn">{error}</Callout>}
 
       {outstanding.length > 0 && (
@@ -89,6 +110,11 @@ export function ReviewStep() {
       )}
 
       <SheetPreview />
+
+      <details className="disclosure disclosure-boxed">
+        <summary>Something wrong, or missing? Override any number or add your own features</summary>
+        <EscapeHatch />
+      </details>
 
       <p className="fine-print">{ruleset.license.notice}</p>
 
@@ -125,9 +151,12 @@ export function SheetPreview() {
         {derived.derived
           .filter((stat) => stat.slot === 'primary')
           .map((stat) => (
-            <div key={stat.id} className="tile">
+            <div key={stat.id} className={`tile${stat.override ? ' is-overridden' : ''}`}>
               <span className="tile-label">{stat.label}</span>
-              <span className="tile-value">{stat.display}</span>
+              <span className="tile-value">
+                {stat.display}
+                {stat.override && <abbr title={stat.override.note || 'Set by hand'}>*</abbr>}
+              </span>
             </div>
           ))}
       </div>
@@ -211,6 +240,57 @@ export function SheetPreview() {
           )}
         </section>
       </div>
+
+      {(derived.attacks.length > 0 || derived.actions.length > 0) && (
+        <section className="turn">
+          <h3>On your turn</h3>
+
+          {derived.attacks.length > 0 && (
+            <table className="attacks">
+              <thead>
+                <tr>
+                  <th scope="col">Attack</th>
+                  <th scope="col">To hit</th>
+                  <th scope="col">Damage</th>
+                  <th scope="col">Notes</th>
+                </tr>
+              </thead>
+              <tbody>
+                {derived.attacks.map((attack, index) => (
+                  <tr key={`${attack.name}-${index}`}>
+                    <td>{attack.name}</td>
+                    <td>
+                      {signed(attack.attackBonus)} <em>{attack.abilityAbbr}</em>
+                    </td>
+                    <td>{attack.damage}</td>
+                    <td>{attack.proficient ? attack.properties ?? '' : 'Not proficient'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          {Object.entries(
+            derived.actions.reduce<Record<string, typeof derived.actions>>((groups, action) => {
+              ;(groups[action.timingLabel] ??= []).push(action)
+              return groups
+            }, {}),
+          ).map(([label, actions]) => (
+            <div key={label} className="turn-group">
+              <h4>{label}</h4>
+              <ul className="turn-list">
+                {actions.map((action, index) => (
+                  <li key={`${action.name}-${index}`}>
+                    <strong>{action.name}</strong>
+                    {action.uses && <span className="turn-uses">{action.uses}</span>}
+                    <span>{action.description}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </section>
+      )}
 
       {derived.features.length > 0 && (
         <section>

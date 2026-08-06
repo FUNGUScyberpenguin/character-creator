@@ -339,3 +339,138 @@ describe('ruleset integrity', () => {
 function statOf(derived: ReturnType<typeof deriveCharacter>, id: string): number {
   return derived.derived.find((stat) => stat.id === id)?.value ?? Number.NaN
 }
+
+describe('attacks and the action economy', () => {
+  /** A level-5 fighter carrying three very different weapons. */
+  function armedFighter() {
+    const state = createCharacter(dnd5e)
+    state.level = 5
+    state.baseAbilityScores = { str: 16, dex: 14, con: 14, int: 8, wis: 12, cha: 10 }
+    state.selections[stepKey('class')] = ['fighter']
+    state.inventory = [
+      { name: 'Longsword', quantity: 1 },
+      { name: 'Dagger', quantity: 1 },
+      { name: 'Longbow', quantity: 1 },
+      { name: 'Backpack', quantity: 1 },
+    ]
+    return state
+  }
+
+  it('uses the right ability for each weapon', () => {
+    const attacks = deriveCharacter(dnd5e, armedFighter()).attacks
+
+    // STR 16 (+3) + proficiency 3.
+    expect(attacks.find((a) => a.name === 'Longsword')).toMatchObject({ abilityAbbr: 'STR', attackBonus: 6 })
+    // Finesse takes the better of STR and DEX, which here is STR.
+    expect(attacks.find((a) => a.name === 'Dagger')?.abilityAbbr).toBe('STR')
+    // Ranged always uses DEX: 14 (+2) + 3.
+    expect(attacks.find((a) => a.name === 'Longbow')).toMatchObject({ abilityAbbr: 'DEX', attackBonus: 5 })
+  })
+
+  it('takes DEX for a finesse weapon when DEX is the better score', () => {
+    const state = armedFighter()
+    state.baseAbilityScores = { ...state.baseAbilityScores, str: 10, dex: 18 }
+    const dagger = deriveCharacter(dnd5e, state).attacks.find((a) => a.name === 'Dagger')!
+    expect(dagger.abilityAbbr).toBe('DEX')
+    expect(dagger.attackBonus).toBe(7) // +4 DEX, +3 proficiency
+  })
+
+  it('folds the ability bonus into the damage string', () => {
+    const longsword = deriveCharacter(dnd5e, armedFighter()).attacks.find((a) => a.name === 'Longsword')!
+    expect(longsword.damage).toBe('1d8 + 3 slashing')
+  })
+
+  it('ignores things that are not weapons', () => {
+    expect(deriveCharacter(dnd5e, armedFighter()).attacks.some((a) => a.name === 'Backpack')).toBe(false)
+  })
+
+  it('marks a weapon you are not proficient with', () => {
+    const state = createCharacter(dnd5e)
+    state.selections[stepKey('class')] = ['wizard'] // no martial weapons
+    state.inventory = [{ name: 'Greatsword', quantity: 1 }]
+    expect(deriveCharacter(dnd5e, state).attacks[0]).toMatchObject({ name: 'Greatsword', proficient: false })
+  })
+
+  it('collects features into the timing they are used at', () => {
+    const actions = deriveCharacter(dnd5e, armedFighter()).actions
+    expect(actions.find((a) => a.name === 'Second Wind')?.timingLabel).toBe('Bonus action')
+    expect(actions.find((a) => a.name === 'Action Surge')?.timingLabel).toBe('Action')
+    // Ordered by the ruleset's declared timings, so actions come before bonuses.
+    const timings = actions.map((a) => a.timing)
+    expect(timings.indexOf('action')).toBeLessThan(timings.indexOf('bonus'))
+  })
+})
+
+describe('escape hatch', () => {
+  it('replaces a computed value and records the reason', () => {
+    const state = createCharacter(dnd5e)
+    state.selections[stepKey('class')] = ['fighter']
+    const before = deriveCharacter(dnd5e, state).derived.find((s) => s.id === 'ac')!
+    expect(before.override).toBeUndefined()
+
+    state.overrides['ac'] = { value: 18, note: 'Plate armour' }
+    const after = deriveCharacter(dnd5e, state).derived.find((s) => s.id === 'ac')!
+    expect(after.value).toBe(18)
+    expect(after.display).toBe('18')
+    expect(after.override?.note).toBe('Plate armour')
+  })
+
+  it('adds custom features, including to the turn list', () => {
+    const state = createCharacter(dnd5e)
+    state.customFeatures = [{ name: 'Gift of the Raven', description: 'Reroll a death save.', action: 'reaction', uses: '1/long rest' }]
+
+    const derived = deriveCharacter(dnd5e, state)
+    expect(derived.features.some((f) => f.name === 'Gift of the Raven' && f.source === 'Custom')).toBe(true)
+    expect(derived.actions.find((a) => a.name === 'Gift of the Raven')?.timingLabel).toBe('Reaction')
+  })
+
+  it('adds custom proficiencies alongside granted ones', () => {
+    const state = createCharacter(dnd5e)
+    state.selections[stepKey('class')] = ['fighter']
+    state.customProficiencies = [{ category: 'language', value: 'Thieves’ cant' }]
+    const languages = deriveCharacter(dnd5e, state).proficiencies['language'] ?? []
+    expect(languages.map((l) => l.value)).toContain('Thieves’ cant')
+  })
+
+  it('survives a round trip through save and load', () => {
+    const state = createCharacter(dnd5e)
+    state.overrides['hp'] = { value: 99, note: 'DM ruling' }
+    state.customFeatures = [{ name: 'Boon', description: 'Something.' }]
+    state.customProficiencies = [{ category: 'tool', value: 'Siege engines' }]
+
+    const restored = normalizeCharacter(JSON.parse(JSON.stringify(state)), dnd5e)
+    expect(restored.overrides['hp']).toEqual({ value: 99, note: 'DM ruling' })
+    expect(restored.customFeatures).toHaveLength(1)
+    expect(restored.customProficiencies[0]?.value).toBe('Siege engines')
+  })
+
+  it('drops malformed overrides rather than crashing', () => {
+    const restored = normalizeCharacter({ overrides: { ac: { value: 'nonsense' }, hp: { value: 12 } } }, dnd5e)
+    expect(restored.overrides['ac']).toBeUndefined()
+    expect(restored.overrides['hp']?.value).toBe(12)
+  })
+})
+
+describe('guided picking', () => {
+  it('tags every class against every facet so no filter strands the list', () => {
+    const classes = dnd5e.collections.find((c) => c.id === 'classes')!
+    for (const facet of classes.facets ?? []) {
+      for (const entry of classes.entries) {
+        const matches = (entry.tags ?? []).filter((tag) => facet.options.some((o) => o.value === tag))
+        expect(matches.length, `${entry.name} has no "${facet.id}" tag`).toBeGreaterThan(0)
+      }
+      // Every option must lead somewhere, or the filter is a dead end.
+      for (const option of facet.options) {
+        const count = classes.entries.filter((e) => (e.tags ?? []).includes(option.value)).length
+        expect(count, `"${option.label}" matches nothing`).toBeGreaterThan(0)
+      }
+    }
+  })
+
+  it('tells every class what a turn looks like', () => {
+    const classes = dnd5e.collections.find((c) => c.id === 'classes')!
+    for (const entry of classes.entries) {
+      expect(entry.atTheTable?.length ?? 0, entry.name).toBeGreaterThan(20)
+    }
+  })
+})
