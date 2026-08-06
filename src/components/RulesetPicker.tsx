@@ -27,7 +27,10 @@ export function RulesetPicker() {
         {available.map((ruleset) => (
           <li key={ruleset.id}>
             <button type="button" className="picker-card" onClick={() => chooseRuleset(ruleset.id)}>
-              <span className="picker-name">{ruleset.name}</span>
+              <span className="picker-name">
+                {ruleset.name}
+                {ruleset.kind === 'example' && <span className="picker-badge">Example system</span>}
+              </span>
               <span className="picker-summary">{ruleset.summary}</span>
               <span className="picker-meta">
                 <span>

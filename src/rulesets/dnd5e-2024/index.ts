@@ -1,18 +1,26 @@
 import type { DerivedStat, Ruleset, Step } from '../../engine/types'
-import { abilities, abilityMethods, proficiencyCategories, skills } from './basics'
-import { backgrounds } from './backgrounds'
+import { abilities, abilityMethods, proficiencyCategories, skills } from '../dnd5e/basics'
+import { identityFields } from '../dnd5e/identity'
+import { spellCollection } from '../dnd5e/spells'
 import { classes } from './classes'
-import { equipment } from './equipment'
-import { fightingStyles, invocations, metamagic, pactBoons, subclasses } from './features'
-import { races, subraces } from './races'
-import { identityFields } from './identity'
-import { spellCollection } from './spells'
-import { applyActionTimings } from './timings'
+import { equipment, masteries } from './equipment'
+import { epicBoons, fightingStyles, invocations, metamagic, subclasses } from './features'
+import { backgrounds, feats, lineages, species } from './origins'
 
 /**
- * Spell slot progressions. Each row is a character level (row 0 is level 1) and
- * each column a spell level (column 0 is 1st-level slots).
+ * D&D 5e as published in SRD 5.2 — the 2024 revision.
+ *
+ * This is a sibling of the 5.1 ruleset, not a replacement. Both editions are in
+ * active play, tables are split between them, and a character built under one
+ * is not a character built under the other. The picker offers both and the
+ * engine does not care which is chosen.
+ *
+ * Data is shared with the 5.1 module where the two editions genuinely agree —
+ * the six abilities, the eighteen skills, the spell descriptions, the price of
+ * a longsword. It is written out fresh wherever they do not, which is most of
+ * what a character actually consists of.
  */
+
 const FULL_CASTER: number[][] = [
   [2],
   [3],
@@ -37,7 +45,7 @@ const FULL_CASTER: number[][] = [
 ]
 
 const HALF_CASTER: number[][] = [
-  [],
+  [2],
   [2],
   [3],
   [3],
@@ -60,8 +68,8 @@ const HALF_CASTER: number[][] = [
 ]
 
 /**
- * Pact Magic. Warlocks get a handful of slots that are always cast at the
- * highest level they have unlocked, so each row holds a single non-zero column.
+ * Pact Magic. Every slot is cast at the highest level the warlock has unlocked,
+ * so each row holds a single non-zero column.
  */
 const WARLOCK: number[][] = (() => {
   const counts = [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4]
@@ -87,9 +95,10 @@ const derived: DerivedStat[] = [
     label: 'Armor Class',
     slot: 'primary',
     // Worn armour replaces the unarmoured base entirely; shields and feature
-    // bonuses stack on top of whichever applies.
+    // bonuses stack on top of whichever applies. Draconic Resilience is a
+    // Dexterity-and-Charisma calculation in 2024, where 2014 used a flat 13.
     formula:
-      'if(stat.wearingArmor, stat.armorAC, if(stat.unarmoredDefense, 10 + dex.mod + con.mod, if(stat.unarmoredDefenseWis, 10 + dex.mod + wis.mod, if(stat.draconicResilience, 13 + dex.mod, 10 + dex.mod)))) + stat.shieldBonus + stat.acBonus',
+      'if(stat.wearingArmor, stat.armorAC, if(stat.unarmoredDefense, 10 + dex.mod + con.mod, if(stat.unarmoredDefenseWis, 10 + dex.mod + wis.mod, if(stat.draconicResilience, 10 + dex.mod + cha.mod, 10 + dex.mod)))) + stat.shieldBonus + stat.acBonus',
     description: 'Includes whatever armor and shield you have equipped.',
   },
   {
@@ -97,14 +106,16 @@ const derived: DerivedStat[] = [
     label: 'Initiative',
     slot: 'primary',
     signed: true,
-    formula: 'dex.mod',
+    // The Alert origin feat adds proficiency to Initiative, which enough
+    // characters take that it is worth reading here rather than as a note.
+    formula: 'dex.mod + if(stat.initiativeProficiency, prof, 0)',
   },
   {
     id: 'speed',
     label: 'Speed',
     slot: 'primary',
     formula: 'stat.speed + stat.monkSpeed',
-    description: 'Walking speed in feet, including any class or racial adjustment.',
+    description: 'Walking speed in feet, including any class or species adjustment.',
   },
   {
     id: 'proficiency',
@@ -127,39 +138,54 @@ const derived: DerivedStat[] = [
   },
   {
     id: 'hit-dice',
-    label: 'Hit Dice',
+    label: 'Hit Point Dice',
     slot: 'secondary',
     formula: 'level',
     format: '{value}d{stat.hitDie}',
-    description: 'One hit die per level, of your class’s size. Spent to heal on a short rest.',
+    description: 'One die per level, of your class’s size. Spent to heal on a Short Rest.',
+  },
+  {
+    id: 'sneak-attack',
+    label: 'Sneak Attack',
+    slot: 'combat',
+    formula: 'stat.sneakAttack',
+    format: '{value}d6',
+    description: 'Extra damage once per turn, when you have advantage or an ally is beside the target.',
+  },
+  {
+    id: 'martial-arts',
+    label: 'Martial Arts Die',
+    slot: 'combat',
+    formula: 'stat.martialArts',
+    format: 'd{value}',
+    description: 'The damage die for your Unarmed Strikes and Monk weapons.',
   },
 ]
 
 const collections = [
-  races,
-  subraces,
+  species,
+  lineages,
   classes,
   backgrounds,
+  feats,
   subclasses,
   fightingStyles,
   metamagic,
   invocations,
-  pactBoons,
+  epicBoons,
+  masteries,
   equipment,
   spellCollection,
 ]
-
-// Stamp "when do I use this" onto every feature that has an answer.
-applyActionTimings(collections)
 
 const steps: Step[] = [
   {
     id: 'intro',
     kind: 'intro',
     title: 'Let’s build a character',
-    subtitle: 'Nine short steps. Nothing is permanent — you can go back and change anything.',
+    subtitle: 'Ten short steps. Nothing is permanent — you can go back and change anything.',
     body: [
-      'This wizard walks you through every decision D&D asks of a new character, in the order that makes them easiest to answer. Each screen explains what the choice actually does at the table.',
+      'These are the 2024 rules. The biggest change to character creation: your species no longer adjusts your ability scores. Your background does, and it also hands you your first feat.',
       'Your work is saved in this browser as you go. Nothing is uploaded anywhere, and there is no account to create.',
       'At the end you get a filled-in PDF character sheet to print or hand to your DM, plus a JSON file you can reload here later.',
     ],
@@ -171,11 +197,11 @@ const steps: Step[] = [
     subtitle: 'Most new campaigns start at level 1. Ask your DM if you are joining one already in progress.',
   },
   {
-    id: 'race',
+    id: 'species',
     kind: 'pick',
-    collection: 'races',
-    title: 'Choose a race',
-    subtitle: 'Your race sets your size and speed, adjusts your ability scores, and grants a few traits you keep forever.',
+    collection: 'species',
+    title: 'Choose a species',
+    subtitle: 'Your species sets your size, speed and senses, and grants traits you keep forever. It does not change your ability scores — that comes later.',
   },
   {
     id: 'class',
@@ -189,19 +215,19 @@ const steps: Step[] = [
     kind: 'pick',
     collection: 'backgrounds',
     title: 'Choose a background',
-    subtitle: 'What you did before adventuring. Backgrounds give you skills, some kit, and a hook for the DM to pull on.',
+    subtitle: 'What you did before adventuring — and, in these rules, where your ability score increases and your first feat come from.',
   },
   {
     id: 'abilities',
     kind: 'abilities',
     title: 'Set your ability scores',
-    subtitle: 'Six numbers that underpin nearly every roll. Pick a method, then assign them.',
+    subtitle: 'Six numbers that underpin nearly every roll. Pick a method, assign them, and your background’s increases are added on top.',
   },
   {
     id: 'choices',
     kind: 'choices',
     title: 'Finishing touches',
-    subtitle: 'Anything still outstanding from your race, class, or background shows up here.',
+    subtitle: 'Anything still outstanding from your species, class, or background shows up here.',
   },
   {
     id: 'equipment',
@@ -215,7 +241,7 @@ const steps: Step[] = [
     kind: 'spells',
     collection: 'spells',
     title: 'Spells',
-    subtitle: 'Choose the spells you know or prepare. Skip this step entirely if you do not cast.',
+    subtitle: 'Choose the spells you prepare. Skip this step entirely if you do not cast.',
   },
   {
     id: 'identity',
@@ -233,17 +259,17 @@ const steps: Step[] = [
   },
 ]
 
-export const dnd5e: Ruleset = {
-  id: 'dnd5e-srd',
-  name: 'D&D 5e (SRD 5.1)',
+export const dnd5e2024: Ruleset = {
+  id: 'dnd5e-srd-52',
+  name: 'D&D 5e (2024 rules, SRD 5.2)',
   version: '1.0.0',
   summary:
-    'The fifth-edition rules published by Wizards of the Coast in the Systems Reference Document 5.1, covering twelve classes, nine races, and the full SRD spell list.',
+    'The 2024 revision of fifth edition, from Systems Reference Document 5.2. Species no longer change your ability scores — your background does, and it grants an origin feat as well. Adds weapon mastery, moves every subclass to 3rd level, and turns 19th level into an Epic Boon.',
   license: {
     name: 'CC BY 4.0',
     url: 'https://creativecommons.org/licenses/by/4.0/legalcode',
     notice:
-      'This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC, available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License.',
+      'This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License.',
   },
   maxLevel: 20,
   proficiencyBonus: '2 + floor((level - 1) / 4)',
@@ -268,9 +294,19 @@ export const dnd5e: Ruleset = {
     acBonus: 0,
     darkvision: 0,
     monkSpeed: 0,
+    martialArts: 0,
+    sneakAttack: 0,
     unarmoredDefense: 0,
     unarmoredDefenseWis: 0,
     draconicResilience: 0,
+    initiativeProficiency: 0,
+    cantripsKnown: 0,
+    spellsPrepared: 0,
+    channelDivinity: 0,
+    secondWind: 0,
+    wildShape: 0,
+    rages: 0,
+    rageDamage: 0,
     armorAC: 0,
     shieldBonus: 0,
     wearingArmor: 0,
@@ -305,7 +341,6 @@ export const dnd5e: Ruleset = {
     tag: 'weapon',
     proficiencyCategory: 'weapon',
     abilityRules: [
-      // Finesse lets you use whichever of Strength or Dexterity is better.
       { property: 'Finesse', abilities: ['str', 'dex'] },
       { tag: 'ranged', abilities: ['dex'] },
       { abilities: ['str'] },

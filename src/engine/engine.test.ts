@@ -399,6 +399,28 @@ describe('attacks and the action economy', () => {
     const timings = actions.map((a) => a.timing)
     expect(timings.indexOf('action')).toBeLessThan(timings.indexOf('bonus'))
   })
+
+  /**
+   * A usage note is frequently a level-dependent number, so it can name a stat
+   * the way a derived stat's `format` does. Before this, "{stat.rages}/long
+   * rest" was printed onto the sheet exactly as written.
+   */
+  it('fills in a usage note that names a stat', () => {
+    const state = createCharacter(dnd5e)
+    state.level = 6
+    state.selections[stepKey('class')] = ['barbarian']
+
+    const rage = deriveCharacter(dnd5e, state).features.find((f) => f.name === 'Rage')!
+    expect(rage.uses).toBe('4/long rest')
+
+    state.level = 1
+    expect(deriveCharacter(dnd5e, state).features.find((f) => f.name === 'Rage')!.uses).toBe('2/long rest')
+  })
+
+  it('leaves a usage note with no placeholders alone', () => {
+    const secondWind = deriveCharacter(dnd5e, armedFighter()).features.find((f) => f.name === 'Second Wind')!
+    expect(secondWind.uses).toBe('1/short rest')
+  })
 })
 
 describe('escape hatch', () => {

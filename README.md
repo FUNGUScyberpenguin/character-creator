@@ -38,9 +38,31 @@ host anywhere — GitHub Pages, Netlify, an S3 bucket, a USB stick.
 
 ## What ships today
 
-Two systems, and the app opens by asking which one you are playing.
+Two editions of D&D and one original system. The app opens by asking which one
+you are playing, and every screen after that comes from the answer.
+
+### D&D 5e (2024 rules, SRD 5.2)
+
+The current edition, and the default. Character creation differs from 2014 in
+ways that are structural rather than cosmetic, so it is a separate ruleset
+rather than a patch:
+
+| | 2014 (SRD 5.1) | 2024 (SRD 5.2) |
+|---|---|---|
+| Ability increases | Your race grants them | Your **background** grants them, along with an origin feat |
+| Subclass | 1st, 2nd or 3rd level, by class | 3rd level, for everyone |
+| Weapon mastery | — | Barbarian, fighter, paladin, ranger and rogue nominate weapons |
+| 19th level | A fifth ability score improvement | An **Epic Boon** |
+| Spell preparation | Bards, rangers, sorcerers and warlocks knew a fixed list | Everyone prepares |
+| Paladins and rangers | Cast from 2nd level | Cast from 1st |
+
+Ten species (with elf, gnome, goliath and tiefling lineages), sixteen
+backgrounds, twelve origin feats, all twelve classes to 20th level with their
+SRD subclass, and eight Epic Boons.
 
 ### D&D 5e (SRD 5.1)
+
+The 2014 rules, still in play at a great many tables:
 
 | | |
 |---|---|
@@ -53,13 +75,16 @@ Two systems, and the app opens by asking which one you are playing.
 
 Hit points, armour class, saves, skills, spell slots, save DCs and prepared-spell
 counts are all computed from your choices as you make them — including armour,
-which only counts once you tick it as worn.
+which only counts once you tick it as worn. Both editions share the spell
+descriptions and the price of a longsword, because on those the two genuinely
+agree.
 
 ### Embers
 
-A compact original system, MIT-licensed, written for this project. It exists to
-prove the engine is not a D&D app in disguise, and it is deliberately unlike
-D&D at every level the engine exposes:
+A compact original system, MIT-licensed, written for this project and labelled
+in the picker as the example it is. Nobody is running a campaign in it — it
+exists to prove the engine is not a D&D app in disguise, and it is deliberately
+unlike D&D at every level the engine exposes:
 
 | | D&D 5e | Embers |
 |---|---|---|
@@ -152,7 +177,11 @@ BASE_PATH=/my-repo/ npm run build   # for GitHub Pages
 
 MIT — see [LICENSE](LICENSE).
 
-The 5e ruleset includes material from the System Reference Document 5.1 by
-Wizards of the Coast LLC, used under
-[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode). This project
-is not affiliated with or endorsed by Wizards of the Coast.
+The 5e rulesets include material from the System Reference Document 5.1 and the
+System Reference Document 5.2 by Wizards of the Coast LLC, used under
+[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode). Each
+ruleset carries its own attribution notice, which is reproduced in the app and
+printed on every exported sheet. This project is not affiliated with or endorsed
+by Wizards of the Coast.
+
+Embers is original to this project and released under the MIT Licence.

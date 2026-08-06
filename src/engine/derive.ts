@@ -279,17 +279,21 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
   const timingLabel = (id: string) =>
     ruleset.actionTimings?.find((timing) => timing.id === id)?.label ?? id
 
+  // "3/long rest" is often a level-dependent number, so a usage note may name
+  // stats the same way a derived stat's `format` does: "{stat.rages}/long rest".
+  const usesText = (uses?: string) => (uses === undefined ? undefined : fillTemplate(uses, context, stats))
+
   for (const { effect, source } of effects) {
     switch (effect.type) {
       case 'feature':
-        features.push({ name: effect.name, description: effect.description, uses: effect.uses, source })
+        features.push({ name: effect.name, description: effect.description, uses: usesText(effect.uses), source })
         if (effect.action) {
           actions.push({
             name: effect.name,
             timing: effect.action,
             timingLabel: timingLabel(effect.action),
             description: effect.description,
-            uses: effect.uses,
+            uses: usesText(effect.uses),
             source,
           })
         }
@@ -559,10 +563,32 @@ function deriveAttacks(
 }
 
 /**
- * Fill a `{placeholder}` template. `{value}` is the formatted number; anything
- * else is looked up in the formula context, then the stat bag (which is how a
- * non-numeric stat such as a size or a damage type can appear on the sheet).
+ * Fill a `{placeholder}` template. Names are looked up in `extra` first, then
+ * the formula context, then the stat bag (which is how a non-numeric stat such
+ * as a size or a damage type can appear on the sheet).
+ *
+ * An unknown name resolves to an empty string rather than being left in place:
+ * a blank on the sheet reads as "nothing here", where `{stat.typo}` reads as a
+ * broken program.
  */
+function fillTemplate(
+  template: string,
+  context: Record<string, number>,
+  stats: Record<string, number | string>,
+  extra: Record<string, string> = {},
+): string {
+  return template.replace(/\{([^}]+)\}/g, (_match, name: string) => {
+    const fromExtra = extra[name]
+    if (fromExtra !== undefined) return fromExtra
+    const fromContext = context[name]
+    if (fromContext !== undefined) return String(fromContext)
+    const key = name.startsWith('stat.') ? name.slice(5) : name
+    const fromStats = stats[key]
+    return fromStats === undefined ? '' : String(fromStats)
+  })
+}
+
+/** `{value}` is the formatted number, `{raw}` the unformatted one. */
 function formatStat(
   template: string,
   value: number,
@@ -570,15 +596,7 @@ function formatStat(
   context: Record<string, number>,
   stats: Record<string, number | string>,
 ): string {
-  return template.replace(/\{([^}]+)\}/g, (_match, name: string) => {
-    if (name === 'value') return plain
-    if (name === 'raw') return String(value)
-    const fromContext = context[name]
-    if (fromContext !== undefined) return String(fromContext)
-    const key = name.startsWith('stat.') ? name.slice(5) : name
-    const fromStats = stats[key]
-    return fromStats === undefined ? '' : String(fromStats)
-  })
+  return fillTemplate(template, context, stats, { value: plain, raw: String(value) })
 }
 
 function addItem(list: InventoryItem[], name: string, quantity: number): void {
