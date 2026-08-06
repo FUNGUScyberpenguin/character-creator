@@ -56,9 +56,15 @@ rather than a patch:
 | Spell preparation | Bards, rangers, sorcerers and warlocks knew a fixed list | Everyone prepares |
 | Paladins and rangers | Cast from 2nd level | Cast from 1st |
 
-Ten species (with elf, gnome, goliath and tiefling lineages), sixteen
-backgrounds, twelve origin feats, all twelve classes to 20th level with their
-SRD subclass, and eight Epic Boons.
+Nine species (with elf, gnome, goliath and tiefling lineages), four backgrounds,
+four Origin feats, all twelve classes to 20th level with their SRD subclass, and
+seven Epic Boons.
+
+Those counts are the SRD's, not the Player's Handbook's. SRD 5.2 publishes four
+backgrounds where the PHB has sixteen, and four Origin feats where the PHB has
+many more. Content outside the SRD is not reproduced here, so if your table uses
+a PHB background you will need to add it yourself — one entry in a data file,
+and the wizard picks it up.
 
 ### D&D 5e (SRD 5.1)
 

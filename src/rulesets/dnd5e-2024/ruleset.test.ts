@@ -13,9 +13,12 @@ import { dnd5e2024 } from './index'
  *
  * The generic suite in `rulesets.test.ts` already proves this ruleset holds
  * together. What it cannot know is whether it is the *2024* rules — so this
- * file asserts the handful of things that make the edition what it is. Each one
- * is a claim the app makes to the player, and each would be silently wrong if
- * the data drifted back towards the 5.1 module it sits beside.
+ * file asserts the things that make the edition what it is, and the per-level
+ * numbers that are invisible until someone plays a character to 16th level and
+ * finds their rage damage is wrong.
+ *
+ * **Every number below is transcribed from the class tables in SRD 5.2.** When
+ * one of these fails, the document is right and the data is wrong.
  */
 
 const classes = findCollection(dnd5e2024, 'classes')!
@@ -36,6 +39,16 @@ function choicesOf(entry: Entry): { choice: Choice; level: number }[] {
 
 function effectsOf(entry: Entry) {
   return [...(entry.effects ?? []), ...(entry.levels ?? []).flatMap((grant) => grant.effects ?? [])]
+}
+
+/** Read a stat's value at each level 1–20, the way the sheet will. */
+function statByLevel(classId: string, stat: string): number[] {
+  return Array.from({ length: 20 }, (_, index) => {
+    const state = createCharacter(dnd5e2024)
+    state.level = index + 1
+    state.selections[stepKey('class')] = [classId]
+    return deriveCharacter(dnd5e2024, state).stats[stat] as number
+  })
 }
 
 describe('what makes these the 2024 rules', () => {
@@ -63,27 +76,57 @@ describe('what makes these the 2024 rules', () => {
       expect(options.length, entry.name).toBe(7)
 
       for (const option of options) {
-        const total = (option.effects ?? []).reduce(
-          (sum, effect) => sum + (effect.type === 'ability' ? effect.amount : 0),
-          0,
-        )
+        const total = (option.effects ?? []).reduce((sum, effect) => sum + (effect.type === 'ability' ? effect.amount : 0), 0)
         expect(total, `${entry.name}/${option.id} spends ${total} points`).toBe(3)
       }
     }
   })
 
-  it('gives every background an origin feat that exists', () => {
-    const originFeats = new Set(feats.entries.filter((f) => (f.tags ?? []).includes('origin')).map((f) => f.id))
-    expect(originFeats.size).toBeGreaterThan(0)
+  it('publishes exactly what the SRD publishes, and no more', () => {
+    // The Player's Handbook has sixteen backgrounds and a long feat list. The
+    // SRD has four backgrounds, nine species and four Origin feats. Reproducing
+    // the rest would be reproducing content this project has no licence for, so
+    // the counts are pinned.
+    expect(backgrounds.entries.map((entry) => entry.id).sort()).toEqual(['acolyte', 'criminal', 'sage', 'soldier'])
+    expect(species.entries.map((entry) => entry.id).sort()).toEqual([
+      'dragonborn',
+      'dwarf',
+      'elf',
+      'gnome',
+      'goliath',
+      'halfling',
+      'human',
+      'orc',
+      'tiefling',
+    ])
+    expect(feats.entries.filter((entry) => (entry.tags ?? []).includes('origin')).map((entry) => entry.id).sort()).toEqual([
+      'alert',
+      'magic-initiate',
+      'savage-attacker',
+      'skilled',
+    ])
+    expect(findCollection(dnd5e2024, 'fighting-styles')!.entries.map((entry) => entry.id).sort()).toEqual([
+      'archery',
+      'defense',
+      'great-weapon',
+      'two-weapon',
+    ])
+    expect(findCollection(dnd5e2024, 'epic-boons')!.entries.length).toBe(7)
+    expect(findCollection(dnd5e2024, 'metamagic')!.entries.length).toBe(10)
+    expect(findCollection(dnd5e2024, 'invocations')!.entries.length).toBe(28)
+    expect(findCollection(dnd5e2024, 'subclasses')!.entries.length).toBe(12)
+  })
+
+  it('gives every background an origin feat drawn from the ones that exist', () => {
+    const originFeats = new Set(feats.entries.filter((f) => (f.tags ?? []).includes('origin')).map((f) => f.name))
 
     for (const entry of backgrounds.entries) {
       const choice = (entry.choices ?? []).find((candidate) => candidate.id === 'feat')
       expect(choice, `${entry.name} has no origin feat`).toBeDefined()
       expect(choice!.source).toEqual({ kind: 'collection', collection: 'feats', tag: 'origin' })
 
-      // The card advertises a specific feat, so that name has to be real.
-      const advertised = String(entry.meta?.['Feat'] ?? '').replace(/ /g, '-')
-      expect(originFeats.has(advertised), `${entry.name} advertises "${advertised}"`).toBe(true)
+      // The card advertises the feat the SRD assigns, so that name has to be real.
+      expect(originFeats.has(String(entry.meta?.['Feat'])), `${entry.name} advertises "${entry.meta?.['Feat']}"`).toBe(true)
     }
   })
 
@@ -121,9 +164,11 @@ describe('what makes these the 2024 rules', () => {
     }
   })
 
-  it('gives weapon mastery to exactly the five classes that have it, in the right amounts', () => {
+  it('gives weapon mastery to exactly the five classes that have it, and grows it where it grows', () => {
+    // Only the barbarian and the fighter gain more masteries with level; the
+    // paladin, ranger and rogue keep two for twenty levels.
     const expected: Record<string, Record<number, number>> = {
-      barbarian: { 1: 2 },
+      barbarian: { 1: 2, 4: 3, 10: 4 },
       fighter: { 1: 3, 4: 4, 10: 5, 16: 6 },
       paladin: { 1: 2 },
       ranger: { 1: 2 },
@@ -153,12 +198,24 @@ describe('what makes these the 2024 rules', () => {
     }
   })
 
-  it('leaves the 5.1 equipment list free of mastery properties', () => {
+  it('leaves the 5.1 equipment list alone', () => {
     // The two editions share this data at runtime. If 5.2 mutated it in place
-    // instead of copying, longswords would sprout a Sap property in 2014.
+    // instead of copying, longswords would sprout a Sap property in 2014 and
+    // the 2014 trident would silently become a d8.
     for (const entry of findCollection(dnd5e, 'equipment')!.entries) {
       expect(entry.meta?.['Mastery'], `5.1 ${entry.name}`).toBeUndefined()
     }
+    const trident51 = findCollection(dnd5e, 'equipment')!.entries.find((entry) => entry.id === 'trident')!
+    expect(trident51.meta?.['Damage']).toBe('1d6 piercing')
+  })
+
+  it('carries the 2024 weapon table where it differs from 2014', () => {
+    const find = (id: string) => equipment.entries.find((entry) => entry.id === id)!
+    expect(find('trident').meta?.['Damage']).toBe('1d8 piercing')
+    expect(find('war-pick').meta?.['Properties']).toBe('Versatile (1d10)')
+    expect(find('warhammer').meta?.['Weight']).toBe('5 lb.')
+    // The net is adventuring gear in 2024, not a weapon.
+    expect(find('net').tags ?? []).not.toContain('weapon')
   })
 
   it('lets paladins and rangers cast from 1st level', () => {
@@ -167,7 +224,7 @@ describe('what makes these the 2024 rules', () => {
       state.selections[stepKey('class')] = [id]
       const source = deriveCharacter(dnd5e2024, state).spellcasting[0]
       expect(source, `${id} at level 1`).toBeDefined()
-      expect(source!.slots?.[0], `${id} 1st-level slots`).toBe(2)
+      expect(source!.slots?.[0], `${id} level 1 slots`).toBe(2)
     }
   })
 
@@ -178,6 +235,75 @@ describe('what makes these the 2024 rules', () => {
         expect(effect.preparation, `${entry.name} still uses "spells known"`).toBe('prepared')
       }
     }
+  })
+})
+
+describe('the class tables, level by level', () => {
+  it('matches the barbarian table', () => {
+    expect(statByLevel('barbarian', 'rages')).toEqual([2, 2, 3, 3, 3, 4, 4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 6, 6, 6, 6])
+    // Rage Damage reaches +4 at level 16, not 17.
+    expect(statByLevel('barbarian', 'rageDamage')).toEqual([2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4])
+  })
+
+  it('matches the monk table', () => {
+    // d8 from level 5, d10 from 11, d12 from 17.
+    expect(statByLevel('monk', 'martialArts')).toEqual([6, 6, 6, 6, 8, 8, 8, 8, 8, 8, 10, 10, 10, 10, 10, 10, 12, 12, 12, 12])
+    // Unarmored Movement: +10 at 2, +15 at 6, +20 at 10, +25 at 14, +30 at 18.
+    expect(statByLevel('monk', 'monkSpeed')).toEqual([0, 10, 10, 10, 10, 15, 15, 15, 15, 20, 20, 20, 20, 25, 25, 25, 25, 30, 30, 30])
+  })
+
+  it('matches the druid, cleric and paladin resource tables', () => {
+    // Wild Shape: 2 at level 2, 3 at 6, 4 at 17.
+    expect(statByLevel('druid', 'wildShape')).toEqual([0, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4])
+    expect(statByLevel('cleric', 'channelDivinity')).toEqual([0, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3, 4, 4, 4])
+    expect(statByLevel('paladin', 'channelDivinity')).toEqual([0, 0, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3, 3, 3])
+    expect(statByLevel('fighter', 'secondWind')).toEqual([2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4])
+  })
+
+  it('matches the ranger and rogue tables', () => {
+    expect(statByLevel('ranger', 'favoredEnemy')).toEqual([2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 5, 5, 5, 5, 6, 6, 6, 6])
+    expect(statByLevel('rogue', 'sneakAttack')).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 10])
+  })
+
+  it('matches the prepared-spell tables', () => {
+    // The sorcerer's is its own progression, not the half-caster one.
+    expect(statByLevel('sorcerer', 'spellsPrepared')).toEqual([2, 4, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22])
+    expect(statByLevel('wizard', 'spellsPrepared')).toEqual([4, 5, 6, 7, 9, 10, 11, 12, 14, 15, 16, 16, 17, 17, 18, 18, 19, 20, 21, 22])
+    expect(statByLevel('warlock', 'spellsPrepared')).toEqual([2, 3, 4, 5, 6, 7, 8, 9, 10, 10, 11, 11, 12, 12, 13, 13, 14, 14, 15, 15])
+    expect(statByLevel('ranger', 'spellsPrepared')).toEqual([2, 3, 4, 5, 6, 6, 7, 7, 9, 9, 10, 10, 11, 11, 12, 12, 14, 14, 15, 15])
+  })
+
+  it('matches the warlock’s Pact Magic slots', () => {
+    const table = dnd5e2024.spellSlotTables!['warlock']!
+    // Slot count: 1, 2 from level 2, 3 from 11, 4 from 17.
+    expect(table.map((row) => row.reduce((sum, n) => sum + n, 0))).toEqual([1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4])
+    // Slot level: 1, 2 from level 3, 3 from 5, 4 from 7, 5 from 9 onwards.
+    expect(table.map((row) => row.length)).toEqual([1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5])
+  })
+
+  it('gives the warlock its invocations on the right levels', () => {
+    const warlock = classes.entries.find((entry) => entry.id === 'warlock')!
+    const found: Record<number, number> = {}
+    for (const { choice, level } of choicesOf(warlock)) {
+      if (choice.id.startsWith('invocations-')) found[level] = choice.count ?? 1
+    }
+    expect(found).toEqual({ 1: 1, 2: 3, 5: 5, 7: 6, 9: 7, 12: 8, 15: 9, 18: 10 })
+  })
+
+  it('gives the sorcerer Metamagic at 2, 10 and 17 — not at 7', () => {
+    const sorcerer = classes.entries.find((entry) => entry.id === 'sorcerer')!
+    const levels = choicesOf(sorcerer)
+      .filter(({ choice }) => choice.id.startsWith('metamagic-'))
+      .map(({ level }) => level)
+    expect(levels.sort((a, b) => a - b)).toEqual([2, 10, 17])
+  })
+
+  it('gives the rogue Expertise at 1 and 6', () => {
+    const rogue = classes.entries.find((entry) => entry.id === 'rogue')!
+    const levels = choicesOf(rogue)
+      .filter(({ choice }) => choice.id.startsWith('expertise-'))
+      .map(({ level }) => level)
+    expect(levels.sort((a, b) => a - b)).toEqual([1, 6])
   })
 })
 
@@ -205,13 +331,26 @@ describe('the numbers a player will check first', () => {
     expect(deriveCharacter(dnd5e2024, state).derived.find((s) => s.id === 'hp')!.value).toBe(44)
   })
 
+  it('gives a draconic sorcerer one extra hit point per character level', () => {
+    const state = createCharacter(dnd5e2024)
+    state.level = 6
+    state.baseAbilityScores = { str: 8, dex: 14, con: 12, int: 10, wis: 10, cha: 16 }
+    state.selections[stepKey('class')] = ['sorcerer']
+
+    const plain = deriveCharacter(dnd5e2024, state).derived.find((s) => s.id === 'hp')!.value
+    state.selections['step:class#sorcerer/choice:subclass'] = ['draconic-sorcery']
+    const draconic = deriveCharacter(dnd5e2024, state).derived.find((s) => s.id === 'hp')!.value
+
+    // "+3, then +1 per sorcerer level after 3rd" is +6 at character level 6.
+    expect(draconic - plain).toBe(6)
+  })
+
   it('reads Armor Class from what is actually worn', () => {
     const state = createCharacter(dnd5e2024)
     state.baseAbilityScores = { str: 16, dex: 14, con: 14, int: 10, wis: 12, cha: 8 }
     state.selections[stepKey('class')] = ['fighter']
 
-    const unarmoured = deriveCharacter(dnd5e2024, state).derived.find((s) => s.id === 'ac')!.value
-    expect(unarmoured).toBe(12)
+    expect(deriveCharacter(dnd5e2024, state).derived.find((s) => s.id === 'ac')!.value).toBe(12)
 
     state.inventory = [{ name: 'Chain mail', quantity: 1 }, { name: 'Shield', quantity: 1 }]
     state.equipped = ['Chain mail', 'Shield']
@@ -245,14 +384,37 @@ describe('the numbers a player will check first', () => {
     }
   })
 
-  it('keeps every species’ speed in a believable range', () => {
+  it('gives each species the speed the document gives it', () => {
+    const expected: Record<string, number> = {
+      dragonborn: 30,
+      dwarf: 30,
+      elf: 30,
+      gnome: 30,
+      goliath: 35,
+      halfling: 30,
+      human: 30,
+      orc: 30,
+      tiefling: 30,
+    }
+
     for (const entry of species.entries) {
       const state = createCharacter(dnd5e2024)
       state.selections[stepKey('species')] = [entry.id]
       const speed = deriveCharacter(dnd5e2024, state).derived.find((s) => s.id === 'speed')!.value
-      expect(speed, entry.name).toBeGreaterThanOrEqual(25)
-      expect(speed, entry.name).toBeLessThanOrEqual(40)
+      expect(speed, entry.name).toBe(expected[entry.id])
     }
+  })
+
+  it('gives dwarves and orcs 120 feet of darkvision, and halflings none', () => {
+    const darkvision = (id: string) => {
+      const state = createCharacter(dnd5e2024)
+      state.selections[stepKey('species')] = [id]
+      return deriveCharacter(dnd5e2024, state).stats['darkvision']
+    }
+    expect(darkvision('dwarf')).toBe(120)
+    expect(darkvision('orc')).toBe(120)
+    expect(darkvision('elf')).toBe(60)
+    expect(darkvision('halfling')).toBe(0)
   })
 })
 

@@ -67,12 +67,41 @@ export const MASTERY_PROPERTIES: Record<string, string> = {
   Vex: 'On a hit, you have Advantage on your next attack roll against that target before the end of your next turn.',
 }
 
+/**
+ * Weapon statistics that changed between the two editions. The 2024 table is
+ * mostly identical to 2014, but not entirely — and a trident that still says
+ * 1d6 is exactly the sort of quiet wrongness this project is meant to avoid.
+ */
+const REVISED: Record<string, { damage?: string; weight?: string; properties?: string }> = {
+  trident: { damage: '1d8 piercing', properties: 'Thrown (20/60), versatile (1d10)', weight: '4 lb.' },
+  'war-pick': { damage: '1d8 piercing', properties: 'Versatile (1d10)' },
+  warhammer: { weight: '5 lb.' },
+  pike: { properties: 'Heavy, reach, two-handed' },
+  lance: { damage: '1d10 piercing', properties: 'Heavy, reach, two-handed (unless mounted)' },
+}
+
+/** The net is not a weapon in SRD 5.2; it is ordinary adventuring gear. */
+const NOT_A_WEAPON = new Set(['net'])
+
 export const equipment: Collection = {
   ...srd51Equipment,
   entries: srd51Equipment.entries.map((entry): Entry => {
     const mastery = MASTERY[entry.id]
-    if (!mastery) return entry
-    return { ...entry, meta: { ...entry.meta, Mastery: mastery } }
+    const revised = REVISED[entry.id]
+    if (!mastery && !revised && !NOT_A_WEAPON.has(entry.id)) return entry
+
+    const meta = { ...entry.meta }
+    if (revised?.damage) meta['Damage'] = revised.damage
+    if (revised?.weight) meta['Weight'] = revised.weight
+    if (revised?.properties) meta['Properties'] = revised.properties
+    if (mastery) meta['Mastery'] = mastery
+
+    return {
+      ...entry,
+      meta,
+      ...(NOT_A_WEAPON.has(entry.id) ? { tags: (entry.tags ?? []).filter((tag) => tag !== 'weapon') } : {}),
+      ...(revised?.damage ? { summary: `${revised.damage} · ${revised.properties ?? entry.meta?.['Properties'] ?? '—'}` } : {}),
+    }
   }),
 }
 

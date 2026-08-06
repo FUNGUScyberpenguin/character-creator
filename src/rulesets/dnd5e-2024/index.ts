@@ -72,7 +72,7 @@ const HALF_CASTER: number[][] = [
  * so each row holds a single non-zero column.
  */
 const WARLOCK: number[][] = (() => {
-  const counts = [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 4, 4, 4, 4, 4, 4]
+  const counts = [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 4, 4, 4, 4]
   const slotLevels = [1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5]
   return counts.map((count, index) => {
     const slotLevel = slotLevels[index]!
@@ -296,6 +296,8 @@ export const dnd5e2024: Ruleset = {
     monkSpeed: 0,
     martialArts: 0,
     sneakAttack: 0,
+    bardicDie: 0,
+    favoredEnemy: 0,
     unarmoredDefense: 0,
     unarmoredDefenseWis: 0,
     draconicResilience: 0,
