@@ -299,6 +299,12 @@ export interface Ruleset {
   maxLevel: number
   /** Expression in terms of `level`, e.g. "2 + floor((level - 1) / 4)". */
   proficiencyBonus: Expression
+  /**
+   * How an ability score becomes the modifier added to rolls, in terms of
+   * `score`. Defaults to d20's `floor((score - 10) / 2)`. A system whose
+   * abilities *are* the modifier declares `"score"`.
+   */
+  abilityModifier?: Expression
   abilities: AbilityDef[]
   skills: SkillDef[]
   proficiencyCategories: ProficiencyCategory[]

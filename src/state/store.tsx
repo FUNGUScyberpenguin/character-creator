@@ -8,15 +8,26 @@ import { deriveCharacter } from '../engine/derive'
 import type { CharacterValidation } from '../engine/validation'
 import { validateCharacter } from '../engine/validation'
 import type { Ruleset, Step } from '../engine/types'
-import { defaultRuleset, getRuleset } from '../rulesets'
+import { getRuleset, rulesets } from '../rulesets'
 
-const STORAGE_KEY = 'character-creator:character:v1'
+/** One saved character per system, so switching games never loses work. */
+const characterKey = (rulesetId: string) => `character-creator:character:${rulesetId}:v1`
+const CHOSEN_KEY = 'character-creator:ruleset:v1'
 
-interface StoreValue {
-  ruleset: Ruleset
-  character: CharacterState
-  derived: DerivedCharacter
-  validation: CharacterValidation
+/**
+ * The whole store, including the state before a game has been chosen.
+ * Only the picker gate needs this shape; see `useStore` below.
+ */
+interface AppStore {
+  /** Null until the player has chosen which game they are playing. */
+  ruleset: Ruleset | null
+  /** Every system this build knows about. */
+  available: Ruleset[]
+  chooseRuleset: (id: string) => void
+  clearRuleset: () => void
+  character: CharacterState | null
+  derived: DerivedCharacter | null
+  validation: CharacterValidation | null
   steps: Step[]
   stepIndex: number
   step: Step
@@ -55,25 +66,43 @@ const SETTINGS_KEY = 'character-creator:settings:v1'
 
 const DEFAULT_SETTINGS: Settings = { textScale: 1, readableFont: false, highContrast: false }
 
-const StoreContext = createContext<StoreValue | null>(null)
+const StoreContext = createContext<AppStore | null>(null)
 
-function loadInitial(ruleset: Ruleset): CharacterState {
+/**
+ * The store once a system has been chosen. Everything inside the wizard runs
+ * behind the picker gate, so these are guaranteed present and the components
+ * do not each have to prove it.
+ */
+export type Store = Omit<AppStore, 'ruleset' | 'character' | 'derived' | 'validation'> & {
+  ruleset: Ruleset
+  character: CharacterState
+  derived: DerivedCharacter
+  validation: CharacterValidation
+}
+
+function loadCharacter(ruleset: Ruleset): CharacterState {
   if (typeof localStorage === 'undefined') return createCharacter(ruleset)
   try {
-    const saved = localStorage.getItem(STORAGE_KEY)
-    if (!saved) return createCharacter(ruleset)
-    const parsed = JSON.parse(saved) as { rulesetId?: string }
-    const savedRuleset = (parsed.rulesetId && getRuleset(parsed.rulesetId)) || ruleset
-    return normalizeCharacter(parsed, savedRuleset)
+    const saved = localStorage.getItem(characterKey(ruleset.id))
+    return saved ? normalizeCharacter(JSON.parse(saved), ruleset) : createCharacter(ruleset)
   } catch {
     // A corrupt save should never stop the app opening.
     return createCharacter(ruleset)
   }
 }
 
+function loadChosenRuleset(): Ruleset | null {
+  if (typeof localStorage === 'undefined') return null
+  const id = localStorage.getItem(CHOSEN_KEY)
+  return (id && getRuleset(id)) || null
+}
+
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const ruleset = defaultRuleset
-  const [character, setCharacter] = useState<CharacterState>(() => loadInitial(ruleset))
+  const [ruleset, setRuleset] = useState<Ruleset | null>(() => loadChosenRuleset())
+  const [character, setCharacter] = useState<CharacterState | null>(() => {
+    const chosen = loadChosenRuleset()
+    return chosen ? loadCharacter(chosen) : null
+  })
   const [stepIndex, setStepIndex] = useState(0)
   const [settings, setSettings] = useState<Settings>(() => {
     if (typeof localStorage === 'undefined') return DEFAULT_SETTINGS
@@ -99,34 +128,67 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [settings])
 
   useEffect(() => {
+    if (!ruleset || !character) return
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(character))
+      localStorage.setItem(characterKey(ruleset.id), JSON.stringify(character))
     } catch {
       // Private browsing or a full quota — the wizard still works in memory.
     }
-  }, [character])
+  }, [ruleset, character])
 
-  const derived = useMemo(() => deriveCharacter(ruleset, character), [ruleset, character])
-  const validation = useMemo(() => validateCharacter(ruleset, character, derived), [ruleset, character, derived])
-
-  const update = useCallback((patch: Partial<CharacterState>) => {
-    setCharacter((current) => ({ ...current, ...patch, updatedAt: new Date().toISOString() }))
+  const chooseRuleset = useCallback((id: string) => {
+    const chosen = getRuleset(id)
+    if (!chosen) return
+    setRuleset(chosen)
+    setCharacter(loadCharacter(chosen))
+    setStepIndex(0)
+    try {
+      localStorage.setItem(CHOSEN_KEY, chosen.id)
+    } catch {
+      /* storage unavailable */
+    }
   }, [])
+
+  const clearRuleset = useCallback(() => {
+    setRuleset(null)
+    setCharacter(null)
+    setStepIndex(0)
+    try {
+      localStorage.removeItem(CHOSEN_KEY)
+    } catch {
+      /* storage unavailable */
+    }
+  }, [])
+
+  // Before a system is chosen there is nothing to derive. The picker renders
+  // instead of the wizard, so these placeholders are never read.
+  const derived = useMemo(
+    () => (ruleset && character ? deriveCharacter(ruleset, character) : null),
+    [ruleset, character],
+  )
+  const validation = useMemo(
+    () => (ruleset && character && derived ? validateCharacter(ruleset, character, derived) : null),
+    [ruleset, character, derived],
+  )
+
+  // Every mutation is a no-op before a system is chosen, which cannot happen
+  // through the UI but keeps the reducers total.
+  const edit = useCallback((change: (current: CharacterState) => CharacterState) => {
+    setCharacter((current) => (current ? { ...change(current), updatedAt: new Date().toISOString() } : current))
+  }, [])
+
+  const update = useCallback((patch: Partial<CharacterState>) => edit((current) => ({ ...current, ...patch })), [edit])
 
   const setSelection = useCallback(
     (key: string, ids: string[]) => {
-      setCharacter((current) => ({
-        ...current,
-        selections: { ...current.selections, [key]: ids },
-        updatedAt: new Date().toISOString(),
-      }))
+      edit((current) => ({ ...current, selections: { ...current.selections, [key]: ids } }))
     },
-    [],
+    [edit],
   )
 
   const toggleSelection = useCallback(
     (key: string, id: string, count: number, allowDuplicates = false) => {
-      setCharacter((current) => {
+      edit((current) => {
         const selected = current.selections[key] ?? []
 
         let next: string[]
@@ -146,90 +208,86 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           next = [...selected.slice(1), id]
         }
 
-        return {
-          ...current,
-          selections: { ...current.selections, [key]: next },
-          updatedAt: new Date().toISOString(),
-        }
+        return { ...current, selections: { ...current.selections, [key]: next } }
       })
     },
-    [],
+    [edit],
   )
 
   const setIdentityField = useCallback((id: string, value: string) => {
-    setCharacter((current) => ({
-      ...current,
-      identity: { ...current.identity, [id]: value },
-      updatedAt: new Date().toISOString(),
-    }))
-  }, [])
+    edit((current) => ({ ...current, identity: { ...current.identity, [id]: value } }))
+  }, [edit])
 
   const setAbilityScore = useCallback((ability: string, score: number) => {
-    setCharacter((current) => ({
-      ...current,
-      baseAbilityScores: { ...current.baseAbilityScores, [ability]: score },
-      updatedAt: new Date().toISOString(),
-    }))
-  }, [])
+    edit((current) => ({ ...current, baseAbilityScores: { ...current.baseAbilityScores, [ability]: score } }))
+  }, [edit])
 
   const setInventory = useCallback((items: InventoryItem[]) => {
-    setCharacter((current) => ({ ...current, inventory: items, updatedAt: new Date().toISOString() }))
-  }, [])
+    edit((current) => ({ ...current, inventory: items }))
+  }, [edit])
 
   const toggleEquipped = useCallback((name: string) => {
-    setCharacter((current) => {
+    edit((current) => {
       const has = current.equipped.some((value) => value.toLowerCase() === name.toLowerCase())
       return {
         ...current,
         equipped: has
           ? current.equipped.filter((value) => value.toLowerCase() !== name.toLowerCase())
           : [...current.equipped, name],
-        updatedAt: new Date().toISOString(),
       }
     })
-  }, [])
+  }, [edit])
 
   const toggleSpell = useCallback((sourceId: string, spellId: string) => {
-    setCharacter((current) => {
+    edit((current) => {
       const chosen = current.spells[sourceId] ?? []
       const next = chosen.includes(spellId) ? chosen.filter((id) => id !== spellId) : [...chosen, spellId]
-      return {
-        ...current,
-        spells: { ...current.spells, [sourceId]: next },
-        updatedAt: new Date().toISOString(),
-      }
+      return { ...current, spells: { ...current.spells, [sourceId]: next } }
     })
-  }, [])
+  }, [edit])
 
   const setOverride = useCallback((statId: string, override: { value: number; note?: string } | null) => {
-    setCharacter((current) => {
+    edit((current) => {
       const overrides = { ...current.overrides }
       if (override === null) delete overrides[statId]
       else overrides[statId] = override
-      return { ...current, overrides, updatedAt: new Date().toISOString() }
+      return { ...current, overrides }
     })
-  }, [])
+  }, [edit])
 
   const setCustomFeatures = useCallback((features: CustomFeature[]) => {
-    setCharacter((current) => ({ ...current, customFeatures: features, updatedAt: new Date().toISOString() }))
-  }, [])
+    edit((current) => ({ ...current, customFeatures: features }))
+  }, [edit])
 
   const setCustomProficiencies = useCallback((values: { category: string; value: string }[]) => {
-    setCharacter((current) => ({ ...current, customProficiencies: values, updatedAt: new Date().toISOString() }))
-  }, [])
+    edit((current) => ({ ...current, customProficiencies: values }))
+  }, [edit])
 
   const updateSettings = useCallback((patch: Partial<Settings>) => {
     setSettings((current) => ({ ...current, ...patch }))
   }, [])
 
   const reset = useCallback(() => {
+    if (!ruleset) return
     setCharacter(createCharacter(ruleset))
     setStepIndex(0)
   }, [ruleset])
 
   const loadFrom = useCallback(
     (raw: unknown) => {
-      setCharacter(normalizeCharacter(raw, ruleset))
+      // A saved character names its own system; honour that over the current one.
+      const saved = raw && typeof raw === 'object' ? (raw as { rulesetId?: string }).rulesetId : undefined
+      const target = (saved && getRuleset(saved)) || ruleset
+      if (!target) return
+      if (target.id !== ruleset?.id) {
+        setRuleset(target)
+        try {
+          localStorage.setItem(CHOSEN_KEY, target.id)
+        } catch {
+          /* storage unavailable */
+        }
+      }
+      setCharacter(normalizeCharacter(raw, target))
       setStepIndex(0)
     },
     [ruleset],
@@ -237,28 +295,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const goToStep = useCallback(
     (index: number) => {
-      setStepIndex(Math.min(Math.max(index, 0), ruleset.steps.length - 1))
+      setStepIndex(Math.min(Math.max(index, 0), Math.max((ruleset?.steps.length ?? 1) - 1, 0)))
       if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' })
     },
-    [ruleset.steps.length],
+    [ruleset?.steps.length],
   )
 
   const goToStepId = useCallback(
     (id: string) => {
-      const index = ruleset.steps.findIndex((step) => step.id === id)
+      const index = ruleset?.steps.findIndex((step) => step.id === id) ?? -1
       if (index >= 0) goToStep(index)
     },
-    [goToStep, ruleset.steps],
+    [goToStep, ruleset?.steps],
   )
 
-  const value: StoreValue = {
+  const value: AppStore = {
     ruleset,
+    available: rulesets,
+    chooseRuleset,
+    clearRuleset,
     character,
     derived,
     validation,
-    steps: ruleset.steps,
+    steps: ruleset?.steps ?? [],
     stepIndex,
-    step: ruleset.steps[stepIndex] ?? ruleset.steps[0]!,
+    step: ruleset?.steps[stepIndex] ?? ruleset?.steps[0] ?? ({ id: 'none', kind: 'intro', title: '', body: [] } as Step),
     goToStep,
     goToStepId,
     next: () => goToStep(stepIndex + 1),
@@ -283,8 +344,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
 
-export function useStore(): StoreValue {
+/** The raw store, including the pre-choice state. For the picker gate only. */
+export function useApp(): AppStore {
   const value = useContext(StoreContext)
-  if (!value) throw new Error('useStore must be used inside a StoreProvider')
+  if (!value) throw new Error('useApp must be used inside a StoreProvider')
   return value
+}
+
+/** The store inside the wizard, where a system has definitely been chosen. */
+export function useStore(): Store {
+  const value = useApp()
+  if (!value.ruleset || !value.character || !value.derived || !value.validation) {
+    throw new Error('useStore was called before a ruleset was chosen')
+  }
+  return value as Store
 }

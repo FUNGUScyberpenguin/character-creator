@@ -1,5 +1,6 @@
 import type { Ruleset } from '../engine/types'
 import { dnd5e } from './dnd5e'
+import { embers } from './embers'
 
 /**
  * The registry of available rulesets.
@@ -8,7 +9,7 @@ import { dnd5e } from './dnd5e'
  * no changes to the engine, the wizard, or the PDF exporter. See
  * docs/RULESET_FORMAT.md.
  */
-export const rulesets: Ruleset[] = [dnd5e]
+export const rulesets: Ruleset[] = [dnd5e, embers]
 
 export const defaultRuleset = dnd5e
 

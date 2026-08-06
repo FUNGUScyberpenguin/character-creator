@@ -1,6 +1,6 @@
 import { useState } from 'react'
 
-import { useStore } from '../state/store'
+import { useApp } from '../state/store'
 
 /**
  * Display preferences.
@@ -10,7 +10,9 @@ import { useStore } from '../state/store'
  * high-contrast mode. All three persist across characters and sessions.
  */
 export function SettingsBar() {
-  const { settings, updateSettings } = useStore()
+  // Deliberately `useApp`: this renders in the top bar before a game has been
+  // chosen, so it must not require one.
+  const { settings, updateSettings } = useApp()
   const [open, setOpen] = useState(false)
 
   return (

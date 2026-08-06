@@ -20,6 +20,7 @@ export const mySystem: Ruleset = {
 
   maxLevel: 20,
   proficiencyBonus: '2 + floor((level - 1) / 4)',
+  abilityModifier: 'floor((score - 10) / 2)',  // omit for the d20 default
 
   abilities: [...],              // what the six (or three, or eight) stats are
   skills: [...],                 // and which ability each keys off
@@ -306,7 +307,7 @@ and any other `{name}` is read from the formula context, so hit dice declare
 | `level` | Character level |
 | `prof` | Proficiency bonus |
 | `<ability>` | Final ability score, e.g. `dex` |
-| `<ability>.mod` | Ability modifier, e.g. `dex.mod` |
+| `<ability>.mod` | Ability modifier, per `ruleset.abilityModifier` |
 | `stat.<key>` | Anything written by `set` or `bonus` |
 | `skill.<id>` | A skill's total modifier |
 | `save.<ability>` | A saving throw's total modifier |
@@ -361,17 +362,37 @@ spellSlotTables: {
 spellcastingFormulas: { saveDC: '8 + prof + castingMod', attackBonus: 'prof + castingMod' }
 ```
 
+## The ability modifier
+
+By default a score becomes a modifier the d20 way, `floor((score - 10) / 2)`.
+A system whose abilities *are* the modifier — running from -1 to +3, say —
+declares that outright:
+
+```ts
+abilityModifier: 'score'
+```
+
+Skills, saves and everything else then use the value directly.
+
 ## Registering it
 
 ```ts
 // src/rulesets/index.ts
 import { mySystem } from './my-system'
 
-export const rulesets: Ruleset[] = [dnd5e, mySystem]
+export const rulesets: Ruleset[] = [dnd5e, embers, mySystem]
 ```
 
-Nothing else needs to change. The wizard, the live summary, and the PDF exporter
-all read from the ruleset.
+Nothing else needs to change. Your system appears on the picker that opens the
+app, the wizard builds itself from your steps, and the PDF exporter reads your
+labels. The shared checks in `src/rulesets/rulesets.test.ts` run against every
+registered ruleset, so yours is covered the moment it is listed.
+
+[`src/rulesets/embers/`](../src/rulesets/embers/) is a complete worked example
+in a single file, and deliberately unlike D&D: four abilities used directly as
+modifiers, ten levels, magic paid for from a pool rather than slots, and armour
+that adds to a defence number instead of replacing a base. It is MIT-licensed
+and meant to be copied.
 
 ## Checklist for a new ruleset
 

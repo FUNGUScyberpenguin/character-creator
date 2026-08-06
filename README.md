@@ -19,9 +19,10 @@ first character, and the DM helping five of them do it at once.
   hatch for anything the rules-as-data cannot express.
 - **Accessible by choice.** Text scaling, a high-legibility typeface, and a
   high-contrast mode, all remembered between sessions.
-- **Not hard-coded to one game.** The wizard is a generic engine driven by a
-  ruleset data file. D&D 5e (SRD 5.1) ships in the box; other systems are a
-  data module away.
+- **You pick the game first.** Everything after that — the steps, the options
+  within them, the numbers on the sheet — comes from the rules of the system you
+  chose. Work is kept per system, so trying another game never loses a
+  half-built character.
 
 ## Try it
 
@@ -37,7 +38,9 @@ host anywhere — GitHub Pages, Netlify, an S3 bucket, a USB stick.
 
 ## What ships today
 
-The bundled **D&D 5e (SRD 5.1)** ruleset covers:
+Two systems, and the app opens by asking which one you are playing.
+
+### D&D 5e (SRD 5.1)
 
 | | |
 |---|---|
@@ -51,6 +54,24 @@ The bundled **D&D 5e (SRD 5.1)** ruleset covers:
 Hit points, armour class, saves, skills, spell slots, save DCs and prepared-spell
 counts are all computed from your choices as you make them — including armour,
 which only counts once you tick it as worn.
+
+### Embers
+
+A compact original system, MIT-licensed, written for this project. It exists to
+prove the engine is not a D&D app in disguise, and it is deliberately unlike
+D&D at every level the engine exposes:
+
+| | D&D 5e | Embers |
+|---|---|---|
+| Abilities | 6, converted to a modifier | 4, *used as* the modifier |
+| Levels | 1–20 | 1–10 |
+| Magic | Spell slots by level | Strain spent from a pool |
+| Armour | Replaces your unarmoured AC | Adds to your Defence |
+| Actions | Action / bonus / reaction | Main / swift / reaction |
+
+Four kin, four callings with paths, six origins, talents, gear and eighteen
+workings. Complete and playable, and the obvious thing to copy when writing a
+system of your own.
 
 ## How it works
 

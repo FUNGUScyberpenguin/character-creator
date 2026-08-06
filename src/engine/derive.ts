@@ -149,6 +149,7 @@ export function describeCharacter(derived: DerivedCharacter): string[] {
   return parts
 }
 
+/** The d20 default, used when a ruleset does not declare its own. */
 export function abilityModifier(score: number): number {
   return Math.floor((score - 10) / 2)
 }
@@ -182,7 +183,9 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
 
   const abilityModifiers: Record<string, number> = {}
   for (const [id, score] of Object.entries(abilityScores)) {
-    abilityModifiers[id] = abilityModifier(score)
+    abilityModifiers[id] = ruleset.abilityModifier
+      ? evaluateInt(ruleset.abilityModifier, { score })
+      : abilityModifier(score)
   }
 
   // 2. The stat bag: ruleset defaults, then `set`, then `bonus`.
@@ -347,11 +350,19 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
 
   const spellcasting = deriveSpellcasting(ruleset, state, effects, context, level, abilityModifiers)
 
-  const derived: DerivedStatValue[] = ruleset.derived.map((stat) => {
+  // Evaluated in order, each result folded into the context before the next is
+  // computed, so a stat may build on one declared above it — a Defence that
+  // reads a proficiency bonus, say. Referencing one declared *later* yields 0,
+  // which is the same rule as any other unknown name.
+  const derived: DerivedStatValue[] = []
+  for (const stat of ruleset.derived) {
     const override = state.overrides[stat.id]
     const value = override ? override.value : evaluateInt(stat.formula, context)
     const plain = stat.signed ? (value >= 0 ? `+${value}` : `${value}`) : String(value)
-    return {
+
+    context[stat.id] = value
+
+    derived.push({
       id: stat.id,
       label: stat.label,
       value,
@@ -360,12 +371,8 @@ export function deriveCharacter(ruleset: Ruleset, state: CharacterState): Derive
       slot: stat.slot ?? 'secondary',
       description: stat.description,
       override,
-    }
-  })
-
-  // Derived values feed back into the context so later formulas — and the PDF —
-  // can refer to them by id (e.g. a "passive perception" that reads `ac`).
-  for (const stat of derived) context[stat.id] = stat.value
+    })
+  }
 
   return {
     state,
