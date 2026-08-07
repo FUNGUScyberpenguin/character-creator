@@ -57,8 +57,8 @@ rather than a patch:
 | Paladins and rangers | Cast from 2nd level | Cast from 1st |
 
 Nine species (with elf, gnome, goliath and tiefling lineages), four backgrounds,
-four Origin feats, all twelve classes to 20th level with their SRD subclass, and
-seven Epic Boons.
+four Origin feats, all twelve classes to 20th level with their SRD subclass,
+seven Epic Boons, and the full 339-spell SRD 5.2 spell list.
 
 Those counts are the SRD's, not the Player's Handbook's. SRD 5.2 publishes four
 backgrounds where the PHB has sixteen, and four Origin feats where the PHB has
@@ -81,9 +81,11 @@ The 2014 rules, still in play at a great many tables:
 
 Hit points, armour class, saves, skills, spell slots, save DCs and prepared-spell
 counts are all computed from your choices as you make them — including armour,
-which only counts once you tick it as worn. Both editions share the spell
-descriptions and the price of a longsword, because on those the two genuinely
-agree.
+which only counts once you tick it as worn. The two editions share the six
+abilities, the eighteen skills and most equipment prices, because on those they
+genuinely agree — and nothing else. The spell lists in particular are separate
+transcriptions: 2024 adds spells, drops others, moves some between schools, and
+renames the ones that used to carry a wizard's name.
 
 ### Embers
 

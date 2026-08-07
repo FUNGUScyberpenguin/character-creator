@@ -1,10 +1,10 @@
 import type { DerivedStat, Ruleset, Step } from '../../engine/types'
 import { abilities, abilityMethods, proficiencyCategories, skills } from '../dnd5e/basics'
 import { identityFields } from '../dnd5e/identity'
-import { spellCollection } from '../dnd5e/spells'
 import { classes } from './classes'
 import { equipment, masteries } from './equipment'
 import { epicBoons, fightingStyles, invocations, metamagic, subclasses } from './features'
+import { spellCollection } from './spells'
 import { backgrounds, feats, lineages, species } from './origins'
 
 /**
@@ -16,9 +16,9 @@ import { backgrounds, feats, lineages, species } from './origins'
  * engine does not care which is chosen.
  *
  * Data is shared with the 5.1 module where the two editions genuinely agree —
- * the six abilities, the eighteen skills, the spell descriptions, the price of
- * a longsword. It is written out fresh wherever they do not, which is most of
- * what a character actually consists of.
+ * the six abilities, the eighteen skills, the price of a longsword. It is
+ * written out fresh wherever they do not, which is most of what a character
+ * actually consists of, including the whole spell list.
  */
 
 const FULL_CASTER: number[][] = [

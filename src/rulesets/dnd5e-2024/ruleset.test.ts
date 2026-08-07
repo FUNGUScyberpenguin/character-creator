@@ -418,6 +418,128 @@ describe('the numbers a player will check first', () => {
   })
 })
 
+describe('the spell list', () => {
+  const spells = findCollection(dnd5e2024, 'spells')!
+  const atLevel = (level: number) => spells.entries.filter((entry) => Number(entry.meta?.['level']) === level)
+  const forClass = (id: string) => spells.entries.filter((entry) => (entry.tags ?? []).includes(id))
+
+  it('has the number of spells the document has, at every level', () => {
+    // Counted from the spell chapter of SRD 5.2. A parser change that silently
+    // dropped or duplicated entries would show up here first.
+    const expected = [27, 57, 57, 42, 34, 38, 31, 20, 17, 16]
+    expect(spells.entries.length).toBe(339)
+    expect(expected.map((_, level) => atLevel(level).length)).toEqual(expected)
+  })
+
+  it('gives every class the list the document gives it', () => {
+    const expected: Record<string, number> = {
+      bard: 130,
+      cleric: 109,
+      druid: 124,
+      paladin: 38,
+      ranger: 48,
+      sorcerer: 140,
+      warlock: 72,
+      wizard: 218,
+    }
+    for (const [id, count] of Object.entries(expected)) {
+      expect(forClass(id).length, `${id} spell list`).toBe(count)
+    }
+  })
+
+  it('follows the spell entries where the document contradicts itself', () => {
+    // SRD 5.2 states each class list twice, and disagrees with itself twice.
+    // Both cases are pinned here so the resolution is a decision on the record
+    // rather than an accident of whichever source was read last. See the note
+    // at the top of `spells.ts`.
+    const tags = (id: string) => findCollection(dnd5e2024, 'spells')!.entries.find((e) => e.id === id)!.tags ?? []
+
+    // Named by its own entry for all three; listed in none of their tables.
+    expect(tags('phantasmal-force')).toEqual(expect.arrayContaining(['bard', 'sorcerer', 'wizard']))
+    // Named by its own entry for all three; missing from the sorcerer's table.
+    expect(tags('mind-spike')).toEqual(expect.arrayContaining(['sorcerer', 'warlock', 'wizard']))
+  })
+
+  it('carries the spells that are new in 2024', () => {
+    const ids = new Set(spells.entries.map((entry) => entry.id))
+    for (const id of ['elementalism', 'sorcerous-burst', 'starry-wisp', 'true-strike']) {
+      expect(ids.has(id), `${id} is missing`).toBe(true)
+    }
+    // True Strike exists in both editions but is a different spell: in 2024 it
+    // is an attack you make with your weapon, not a buff on your next roll.
+    const trueStrike = spells.entries.find((entry) => entry.id === 'true-strike')!
+    expect(trueStrike.summary).toContain('attack')
+    expect(trueStrike.meta?.['Range']).toBe('Self')
+  })
+
+  it('drops the wizards’ names from the spells that carried them', () => {
+    // 2024 renamed the eponymous spells. Both names must not coexist, or a
+    // player searching for one finds two entries for the same spell.
+    const ids = new Set(spells.entries.map((entry) => entry.id))
+    const renamed: [string, string][] = [
+      ['tensers-floating-disk', 'floating-disk'],
+      ['leomunds-tiny-hut', 'tiny-hut'],
+      ['evards-black-tentacles', 'black-tentacles'],
+      ['bigbys-hand', 'arcane-hand'],
+      ['rarys-telepathic-bond', 'telepathic-bond'],
+      ['nystuls-magic-aura', 'arcanists-magic-aura'],
+    ]
+    for (const [old, current] of renamed) {
+      expect(ids.has(current), `${current} is missing`).toBe(true)
+      expect(ids.has(old), `${old} should have been renamed`).toBe(false)
+    }
+  })
+
+  it('fills in every field on every spell', () => {
+    for (const entry of spells.entries) {
+      for (const key of ['School', 'Casting Time', 'Range', 'Components', 'Duration']) {
+        expect(String(entry.meta?.[key] ?? ''), `${entry.name}: ${key}`).not.toBe('')
+      }
+      expect((entry.summary ?? '').length, `${entry.name} has no description`).toBeGreaterThan(30)
+      expect(entry.tags ?? [], `${entry.name} has no level tag`).toContain(`level-${entry.meta?.['level']}`)
+      // Every spell belongs to at least one class list, or nothing can take it.
+      const classes = (entry.tags ?? []).filter((tag) =>
+        ['bard', 'cleric', 'druid', 'paladin', 'ranger', 'sorcerer', 'warlock', 'wizard'].includes(tag),
+      )
+      expect(classes.length, `${entry.name} is on no class list`).toBeGreaterThan(0)
+    }
+  })
+
+  it('is a different list from 5.1, not a copy of it', () => {
+    const srd51 = findCollection(dnd5e, 'spells')!
+    expect(spells).not.toBe(srd51)
+
+    const ids51 = new Set(srd51.entries.map((entry) => entry.id))
+    const ids52 = new Set(spells.entries.map((entry) => entry.id))
+    const onlyIn52 = [...ids52].filter((id) => !ids51.has(id))
+    const onlyIn51 = [...ids51].filter((id) => !ids52.has(id))
+    expect(onlyIn52.length, '2024 adds spells 2014 does not have').toBeGreaterThan(5)
+    expect(onlyIn51.length, '2024 drops spells 2014 had').toBeGreaterThan(5)
+
+    // Acid Splash moved school between editions, which is the cheapest proof
+    // that these are two transcriptions rather than one shared object.
+    expect(srd51.entries.find((entry) => entry.id === 'acid-splash')!.meta?.['School']).toBe('Conjuration')
+    expect(spells.entries.find((entry) => entry.id === 'acid-splash')!.meta?.['School']).toBe('Evocation')
+  })
+
+  it('offers every caster enough spells to fill its level 1 quota', () => {
+    for (const entry of classes.entries) {
+      const state = createCharacter(dnd5e2024)
+      state.baseAbilityScores = { str: 10, dex: 10, con: 10, int: 16, wis: 16, cha: 16 }
+      state.selections[stepKey('class')] = [entry.id]
+
+      for (const source of deriveCharacter(dnd5e2024, state).spellcasting) {
+        const list = forClass(source.list)
+        const cantrips = list.filter((spell) => Number(spell.meta?.['level']) === 0).length
+        const firstLevel = list.filter((spell) => Number(spell.meta?.['level']) === 1).length
+
+        expect(cantrips, `${entry.id} cantrips`).toBeGreaterThanOrEqual(source.cantripsKnown ?? 0)
+        expect(firstLevel, `${entry.id} prepared spells`).toBeGreaterThanOrEqual(source.spellsKnown ?? 0)
+      }
+    }
+  })
+})
+
 describe('the two editions stay distinct', () => {
   it('does not share a ruleset id, so saved characters cannot cross over', () => {
     expect(dnd5e2024.id).not.toBe(dnd5e.id)
