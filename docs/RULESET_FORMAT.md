@@ -380,7 +380,7 @@ Skills, saves and everything else then use the value directly.
 // src/rulesets/index.ts
 import { mySystem } from './my-system'
 
-export const rulesets: Ruleset[] = [dnd5e, embers, mySystem]
+export const rulesets: Ruleset[] = [dnd5e2024, dnd5e, embers, mySystem]
 ```
 
 Nothing else needs to change. Your system appears on the picker that opens the
@@ -388,11 +388,24 @@ app, the wizard builds itself from your steps, and the PDF exporter reads your
 labels. The shared checks in `src/rulesets/rulesets.test.ts` run against every
 registered ruleset, so yours is covered the moment it is listed.
 
+If your system is a demonstration rather than something anyone is playing, set
+`kind: 'example'` and the picker will label it as such — nobody should get
+halfway through a character before discovering the rules are invented.
+
 [`src/rulesets/embers/`](../src/rulesets/embers/) is a complete worked example
 in a single file, and deliberately unlike D&D: four abilities used directly as
 modifiers, ten levels, magic paid for from a pool rather than slots, and armour
 that adds to a defence number instead of replacing a base. It is MIT-licensed
 and meant to be copied.
+
+For a worked example of two *related* systems, compare
+[`src/rulesets/dnd5e/`](../src/rulesets/dnd5e/) with
+[`src/rulesets/dnd5e-2024/`](../src/rulesets/dnd5e-2024/). The 2024 module
+imports the abilities, skills, spell list and equipment prices from the 2014
+one, because on those the editions agree — and writes everything else fresh,
+because on everything else they do not. Note that it *copies* the equipment
+entries before adding mastery properties: shared data must never be mutated in
+place, or one ruleset starts changing another.
 
 ## Checklist for a new ruleset
 
