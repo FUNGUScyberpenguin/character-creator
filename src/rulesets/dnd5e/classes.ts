@@ -152,7 +152,7 @@ const entries: Entry[] = [
         {
           level: 1,
           effects: [
-            feature('Rage', 'In a rage you gain advantage on Strength checks and saves, bonus melee damage, and resistance to bludgeoning, piercing, and slashing damage.', 'stat.rages/long rest'),
+            feature('Rage', 'In a rage you gain advantage on Strength checks and saves, bonus melee damage, and resistance to bludgeoning, piercing, and slashing damage.', '{stat.rages}/long rest'),
             feature('Unarmored Defense', 'While not wearing armor, your AC equals 10 + your Dexterity modifier + your Constitution modifier. You may still use a shield.'),
             { type: 'resource', name: 'Rages', formula: 'stat.rages' },
             setStat('unarmoredDefense', 1),

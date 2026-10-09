@@ -600,7 +600,8 @@ export const embers: Ruleset = {
   name: 'Embers',
   version: '1.0.0',
   summary:
-    'A compact original system: four abilities used directly as modifiers, ten levels, magic paid for with Strain rather than spell slots, and armour that adds to your Defence. Written for this project and MIT-licensed.',
+    'A compact original system: four abilities used directly as modifiers, ten levels, magic paid for with Strain rather than spell slots, and armour that adds to your Defence. Written for this project as the worked example of the ruleset format — it is not a published game.',
+  kind: 'example',
   license: {
     name: 'MIT',
     notice: 'Embers is original to the Character Creator project and released under the MIT Licence. Copy it, change it, or use it as the shape of your own system.',

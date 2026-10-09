@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { choiceKey, createCharacter, entryPath, stepKey } from '../engine/character'
 import { deriveCharacter } from '../engine/derive'
 import { dnd5e } from '../rulesets/dnd5e'
+import { rulesets } from '../rulesets'
 import { renderCharacterSheet } from './characterSheet'
 
 /** A fully specified level-5 elf wizard, complete with spells. */
@@ -61,6 +62,37 @@ describe('PDF export', () => {
       await expect(render(state), `${entry.name} failed to render`).resolves.toBeInstanceOf(Uint8Array)
     }
   }, 30_000)
+
+  /**
+   * The exporter is meant to be system-agnostic, which is only true if it is
+   * exercised against more than one system. This walks every registered
+   * ruleset's classes at their top level, so a new system cannot be added
+   * without proving it can be printed.
+   */
+  it('renders a top-level character from every registered ruleset', async () => {
+    for (const ruleset of rulesets) {
+      // Not every system calls it a class — Embers picks a "calling" — so walk
+      // whatever the ruleset says its pick steps are rather than assuming.
+      const pickSteps = ruleset.steps.filter((step) => step.kind === 'pick')
+      expect(pickSteps.length, `${ruleset.name} asks the player to pick nothing`).toBeGreaterThan(0)
+
+      for (const step of pickSteps) {
+        if (!('collection' in step)) continue
+        const collection = ruleset.collections.find((candidate) => candidate.id === step.collection)!
+
+        for (const entry of collection.entries) {
+          const state = createCharacter(ruleset)
+          state.name = `${ruleset.id} ${entry.name}`
+          state.level = ruleset.maxLevel
+          state.selections[stepKey(step.id)] = [entry.id]
+
+          const bytes = await renderCharacterSheet(ruleset, deriveCharacter(ruleset, state))
+          expect(bytes.byteLength, `${ruleset.name}/${entry.name}`).toBeGreaterThan(1000)
+          expect(new TextDecoder().decode(bytes.slice(0, 5))).toBe('%PDF-')
+        }
+      }
+    }
+  }, 120_000)
 
   it('strips characters the standard PDF fonts cannot encode', async () => {
     const state = wizard()

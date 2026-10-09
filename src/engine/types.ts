@@ -295,6 +295,12 @@ export interface Ruleset {
   version: string
   /** One paragraph shown on the ruleset picker. */
   summary: string
+  /**
+   * `game` (the default) is a system somebody is actually playing. `example` is
+   * a demonstration of the format, and the picker says so — nobody should get
+   * halfway through a character before realising the rules are invented.
+   */
+  kind?: 'game' | 'example'
   license: RulesetLicense
   maxLevel: number
   /** Expression in terms of `level`, e.g. "2 + floor((level - 1) / 4)". */

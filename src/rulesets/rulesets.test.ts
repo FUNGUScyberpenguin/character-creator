@@ -134,6 +134,35 @@ describe.each(rulesets.map((ruleset) => [ruleset.name, ruleset] as const))('%s',
     }
   })
 
+  it('resolves every placeholder in a usage note', () => {
+    // "3/long rest" is often level-dependent, so a note can read
+    // "{stat.rages}/long rest". An unresolved name renders as an empty string,
+    // which on the sheet reads as "/long rest" — the number simply gone.
+    const engineProvided = new Set(['armorAC', 'shieldBonus', 'wearingArmor', 'level', 'prof'])
+    const seeded = new Set([...Object.keys(ruleset.baseStats ?? {}), ...engineProvided])
+    const written = new Set<string>()
+    for (const effect of everyEffect(ruleset)) {
+      if (effect.type === 'set' || effect.type === 'bonus') written.add(effect.stat)
+    }
+
+    for (const effect of everyEffect(ruleset)) {
+      if (effect.type !== 'feature' || !effect.uses) continue
+      for (const match of effect.uses.matchAll(/\{([^}]+)\}/g)) {
+        const name = match[1]!.startsWith('stat.') ? match[1]!.slice(5) : match[1]!
+        expect(seeded.has(name) || written.has(name), `${effect.name}: "${match[0]}" resolves to nothing`).toBe(true)
+      }
+    }
+  })
+
+  it('never prints a raw stat reference where a number belongs', () => {
+    // The bug this guards: a note written as "stat.rages/long rest" instead of
+    // "{stat.rages}/long rest" was printed verbatim onto the character sheet.
+    for (const effect of everyEffect(ruleset)) {
+      if (effect.type !== 'feature' || !effect.uses) continue
+      expect(effect.uses, `${effect.name} shows a raw expression`).not.toMatch(/(^|[^{])stat\./)
+    }
+  })
+
   it('gives its ability-score methods the right shape', () => {
     for (const method of ruleset.abilityMethods) {
       if (method.kind !== 'array') continue
